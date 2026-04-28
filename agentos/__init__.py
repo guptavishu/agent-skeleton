@@ -1,6 +1,6 @@
 """agent-skeleton — thin, extensible agent framework with reasonable defaults."""
 
-from .agent import Agent
+from .agent import Agent, RunHandle
 from .coordinator import Coordinator, SequentialCoordinator
 from .executor import execute_code, extract_code_blocks
 from .hitl import HITLPolicy
@@ -9,7 +9,7 @@ from .provider import OllamaProvider, Provider
 from .skills import Skill, SkillRegistry
 from .telemetry import Telemetry
 from .tools import BUILTIN_TOOLS, Tool, ToolRegistry
-from .types import ExecResult, MemoryEntry, Message, Response, ToolCall, ToolResult, Usage
+from .types import ExecResult, MemoryEntry, Message, Response, RunState, StopReason, ToolCall, ToolResult, Usage
 
 __all__ = [
     "Agent",
@@ -24,7 +24,10 @@ __all__ = [
     "OllamaProvider",
     "Provider",
     "Response",
+    "RunHandle",
+    "RunState",
     "SequentialCoordinator",
+    "StopReason",
     "Skill",
     "SkillRegistry",
     "Telemetry",

@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import signal
 import sys
+import threading
 
 from .agent import Agent
 from .memory import FileMemory
 from .skills import Skill
 from .tools import Tool
-from .types import ToolCall, ToolResult
+from .types import StopReason, ToolCall, ToolResult
 
 
 def _print_tool_call(tc: ToolCall) -> None:
@@ -117,6 +119,18 @@ def _interactive(agent: Agent, args) -> None:
             _handle_command(agent, prompt)
             continue
 
+        _run_interruptible(agent, prompt, args)
+
+
+def _run_interruptible(agent: Agent, prompt: str, args) -> None:
+    original_handler = signal.getsignal(signal.SIGINT)
+
+    def on_interrupt(sig, frame):
+        print("\n  [interrupting...]")
+        agent.stop()
+
+    signal.signal(signal.SIGINT, on_interrupt)
+    try:
         response = agent.run(
             prompt,
             tools_only=args.tools_only,
@@ -124,7 +138,17 @@ def _interactive(agent: Agent, args) -> None:
             plan=args.plan,
             max_rounds=args.max_rounds,
         )
-        print(f"\n{response.content}\n")
+        if response.stop_reason == StopReason.INTERRUPTED.value:
+            print("\n  [interrupted]")
+        elif response.stop_reason == StopReason.DEFERRED.value:
+            state = agent.last_state
+            print(f"\n  [deferred: {state.state_id}]")
+        elif response.stop_reason == StopReason.MAX_ROUNDS.value:
+            print(f"\n{response.content}\n  [max rounds reached]")
+        else:
+            print(f"\n{response.content}\n")
+    finally:
+        signal.signal(signal.SIGINT, original_handler)
 
 
 def _handle_command(agent: Agent, cmd: str) -> None:
@@ -176,11 +200,40 @@ def _handle_command(agent: Agent, cmd: str) -> None:
         else:
             print("  Usage: /remember key=value")
 
+    elif command == "/defer":
+        agent.defer()
+        print("  Agent will defer after the current round.")
+
+    elif command == "/deferred":
+        states = Agent.list_deferred()
+        if states:
+            for s in states:
+                print(f"  [{s.state_id}] round {s.round}/{s.max_rounds} — {s.task[:60]}")
+        else:
+            print("  (no deferred runs)")
+
+    elif command == "/resume":
+        if len(parts) < 2:
+            print("  Usage: /resume <state_id>")
+            return
+        state_id = parts[1].strip()
+        try:
+            response = agent.resume(state_id)
+            if response.stop_reason == StopReason.DEFERRED.value:
+                print(f"  [deferred again: {agent.last_state.state_id}]")
+            else:
+                print(f"\n{response.content}\n")
+        except FileNotFoundError:
+            print(f"  No deferred state found: {state_id}")
+
     elif command == "/help":
         print("  /skills    — list loaded skills")
         print("  /tools     — list available tools")
         print("  /memory    — list or search memory (/memory <query>)")
         print("  /remember  — store a memory (/remember key=value)")
+        print("  /defer     — defer the current run (use during execution)")
+        print("  /deferred  — list deferred runs")
+        print("  /resume    — resume a deferred run (/resume <state_id>)")
         print("  /help      — this message")
 
     else:

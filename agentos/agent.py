@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
+import threading
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable
 
 from .coordinator import Coordinator, SequentialCoordinator
@@ -12,7 +15,9 @@ from .provider import OllamaProvider, Provider
 from .skills import Skill, SkillRegistry
 from .telemetry import Telemetry
 from .tools import BUILTIN_TOOLS, Tool, ToolRegistry
-from .types import Message, Response, ToolCall, ToolResult
+from .types import Message, Response, RunState, StopReason, ToolCall, ToolResult
+
+DEFERRED_DIR = Path.home() / ".agentos" / "deferred"
 
 MAX_ROUNDS = 20
 
@@ -47,6 +52,65 @@ BUILTIN_PROMPTS = {
     "planning": PLANNING_PROMPT,
     "repair": REPAIR_PROMPT,
 }
+
+
+class RunHandle:
+    """Handle for a background agent run. Returned by Agent.run_background()."""
+
+    def __init__(self, agent: Agent, thread: threading.Thread):
+        self._agent = agent
+        self._thread = thread
+        self._result: Response | None = None
+        self._error: Exception | None = None
+        self._event = threading.Event()
+        self._callbacks: list[Callable[[Response], None]] = []
+
+    @property
+    def done(self) -> bool:
+        return self._event.is_set()
+
+    @property
+    def result(self) -> Response:
+        """Block until the run completes and return the response."""
+        self._event.wait()
+        if self._error:
+            raise self._error
+        return self._result
+
+    def wait(self, timeout: float | None = None) -> bool:
+        """Wait up to `timeout` seconds. Returns True if done."""
+        return self._event.wait(timeout)
+
+    def stop(self) -> None:
+        self._agent.stop()
+
+    def defer(self) -> None:
+        self._agent.defer()
+
+    def on_complete(self, callback: Callable[[Response], None]) -> None:
+        """Register a callback fired when the run finishes."""
+        if self._event.is_set():
+            callback(self._result)
+        else:
+            self._callbacks.append(callback)
+
+    def _finish(self, response: Response) -> None:
+        self._result = response
+        self._event.set()
+        for cb in self._callbacks:
+            try:
+                cb(response)
+            except Exception:
+                pass
+
+    def _fail(self, error: Exception) -> None:
+        self._error = error
+        self._event.set()
+        for cb in self._callbacks:
+            try:
+                cb(Response(content="", stop_reason="error"))
+            except Exception:
+                pass
 
 
 class Agent:
@@ -128,6 +192,24 @@ class Agent:
         self.on_code_exec = on_code_exec
         self.on_code_result = on_code_result
 
+        self._stopped = False
+        self._defer_requested = False
+        self._last_state: RunState | None = None
+
+    def stop(self) -> None:
+        """Signal the agent to stop after the current round."""
+        self._stopped = True
+
+    def defer(self) -> None:
+        """Signal the agent to save state and stop after the current round."""
+        self._defer_requested = True
+        self._stopped = True
+
+    @property
+    def last_state(self) -> RunState | None:
+        """The saved state from the most recent deferred run."""
+        return self._last_state
+
     def __call__(self, prompt: str, **kwargs) -> Response:
         return self.complete(prompt, **kwargs)
 
@@ -153,49 +235,115 @@ class Agent:
         orchestration: list[str] | None = None,
         max_rounds: int = MAX_ROUNDS,
     ) -> Response:
+        self._stopped = False
+        self._defer_requested = False
+
         session_id = uuid.uuid4().hex[:12]
         self.telemetry.set_session(session_id)
         self.telemetry.agent_start(self.name, task)
 
-        # build orchestration list
         orch = list(orchestration or self.orchestration)
         if plan and "planning" not in orch:
             orch.insert(0, "planning")
 
-        # build system prompt
         system = self._build_system(orch, tools_only=tools_only, exec_code=exec_code)
 
-        # inject memory context if available
         if self.memory:
             memories = self.memory.retrieve(task, limit=5)
             if memories:
                 memory_text = "\n".join(f"- [{m.key}]: {m.content}" for m in memories)
                 system += f"\n\n## Relevant Memory\n{memory_text}"
 
-        # inject skill prompts
         skill_prompts = self.skill_registry.get_prompts()
         if skill_prompts:
             system += f"\n\n{skill_prompts}"
 
+        mode = "code_only" if exec_code else ("tools_only" if tools_only else "hybrid")
         messages = [Message(role="user", content=task)]
 
-        if exec_code:
-            response = self._run_code_loop(messages, system, max_rounds)
-        elif tools_only:
-            response = self._run_tool_loop(messages, system, max_rounds)
-        else:
-            response = self._run_hybrid_loop(messages, system, max_rounds)
+        response = self._run_loop(messages, system, mode, max_rounds, session_id, task)
 
         self.telemetry.agent_finish(self.name, len(messages))
         return response
+
+    def resume(self, state: RunState | str) -> Response:
+        """Resume a deferred run from saved state."""
+        if isinstance(state, str):
+            state = self._load_state(state)
+
+        self._stopped = False
+        self._defer_requested = False
+        self.telemetry.set_session(state.session_id)
+
+        response = self._run_loop(
+            state.messages, state.system, state.mode,
+            state.max_rounds, state.session_id, state.task,
+            start_round=state.round,
+        )
+
+        self.telemetry.agent_finish(self.name, len(state.messages))
+        return response
+
+    def run_background(
+        self,
+        task: str,
+        *,
+        on_complete: Callable[[Response], None] | None = None,
+        **kwargs,
+    ) -> RunHandle:
+        """Run the agent in a background thread. Returns a RunHandle immediately."""
+        handle = RunHandle.__new__(RunHandle)
+        thread = threading.Thread(target=self._bg_worker, args=(handle, task, kwargs), daemon=True)
+        handle.__init__(self, thread)
+        if on_complete:
+            handle.on_complete(on_complete)
+        thread.start()
+        return handle
+
+    def _bg_worker(self, handle: RunHandle, task: str, kwargs: dict) -> None:
+        try:
+            response = self.run(task, **kwargs)
+            handle._finish(response)
+        except Exception as e:
+            handle._fail(e)
 
     def delegate(self, agent: Agent, task: str) -> Response:
         """Delegate a sub-task to another agent."""
         return self.coordinator.delegate(agent, task)
 
-    def _run_tool_loop(self, messages: list[Message], system: str, max_rounds: int) -> Response:
-        tools = self.tool_registry.list()
-        for _ in range(max_rounds):
+    def _run_loop(
+        self,
+        messages: list[Message],
+        system: str,
+        mode: str,
+        max_rounds: int,
+        session_id: str,
+        task: str,
+        start_round: int = 0,
+    ) -> Response:
+        use_tools = mode in ("tools_only", "hybrid")
+        use_code = mode in ("code_only", "hybrid")
+        tools = self.tool_registry.list() if use_tools else None
+
+        response = Response(content="")
+        for round_num in range(start_round, max_rounds):
+            if self._stopped:
+                reason = StopReason.DEFERRED if self._defer_requested else StopReason.INTERRUPTED
+                if self._defer_requested:
+                    self._save_state(RunState(
+                        state_id=uuid.uuid4().hex[:12],
+                        agent_name=self.name,
+                        task=task,
+                        messages=list(messages),
+                        system=system,
+                        mode=mode,
+                        round=round_num,
+                        max_rounds=max_rounds,
+                        session_id=session_id,
+                    ))
+                response.stop_reason = reason.value
+                return response
+
             response = self.provider.complete(
                 messages, system=system, model=self.model,
                 temperature=self.temperature, max_tokens=self.max_tokens,
@@ -203,50 +351,11 @@ class Agent:
             )
             self._log_llm(response)
 
-            if not response.tool_calls:
-                return response
-
-            # execute tool calls
-            messages.append(Message(role="assistant", content=response.content, tool_calls=response.tool_calls))
-            for tc in response.tool_calls:
-                result = self._execute_tool_call(tc)
-                messages.append(Message(role="tool", content=result.output or result.error or "", tool_call_id=tc.id))
-
-        return response
-
-    def _run_code_loop(self, messages: list[Message], system: str, max_rounds: int) -> Response:
-        for _ in range(max_rounds):
-            response = self.provider.complete(
-                messages, system=system, model=self.model,
-                temperature=self.temperature, max_tokens=self.max_tokens,
-            )
-            self._log_llm(response)
-
-            blocks = extract_code_blocks(response.content)
-            if not blocks:
-                return response
-
-            messages.append(Message(role="assistant", content=response.content))
-            for code in blocks:
-                output = self._execute_code(code)
-                messages.append(Message(role="user", content=f"[Code output]\n{output}"))
-
-        return response
-
-    def _run_hybrid_loop(self, messages: list[Message], system: str, max_rounds: int) -> Response:
-        tools = self.tool_registry.list()
-        for _ in range(max_rounds):
-            response = self.provider.complete(
-                messages, system=system, model=self.model,
-                temperature=self.temperature, max_tokens=self.max_tokens,
-                tools=tools,
-            )
-            self._log_llm(response)
-
-            has_tool_calls = bool(response.tool_calls)
-            has_code = bool(extract_code_blocks(response.content))
+            has_tool_calls = use_tools and bool(response.tool_calls)
+            has_code = use_code and bool(extract_code_blocks(response.content))
 
             if not has_tool_calls and not has_code:
+                response.stop_reason = StopReason.DONE.value
                 return response
 
             messages.append(Message(role="assistant", content=response.content, tool_calls=response.tool_calls))
@@ -263,6 +372,7 @@ class Agent:
                     output = self._execute_code(code)
                     messages.append(Message(role="user", content=f"[Code output]\n{output}"))
 
+        response.stop_reason = StopReason.MAX_ROUNDS.value
         return response
 
     def _build_system(self, orchestration: list[str], tools_only: bool, exec_code: bool) -> str:
@@ -320,6 +430,77 @@ class Agent:
             self.on_code_result(output)
         self.telemetry.code_result(result.stdout, result.stderr, result.returncode)
         return output
+
+    def _save_state(self, state: RunState) -> None:
+        DEFERRED_DIR.mkdir(parents=True, exist_ok=True)
+        data = {
+            "state_id": state.state_id,
+            "agent_name": state.agent_name,
+            "task": state.task,
+            "messages": [
+                {
+                    "role": m.role,
+                    "content": m.content,
+                    "tool_calls": [
+                        {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+                        for tc in m.tool_calls
+                    ],
+                    "tool_call_id": m.tool_call_id,
+                }
+                for m in state.messages
+            ],
+            "system": state.system,
+            "mode": state.mode,
+            "round": state.round,
+            "max_rounds": state.max_rounds,
+            "session_id": state.session_id,
+            "timestamp": state.timestamp,
+        }
+        path = DEFERRED_DIR / f"{state.state_id}.json"
+        path.write_text(json.dumps(data, indent=2))
+        self._last_state = state
+        self.telemetry.log("deferred", state_id=state.state_id, round=state.round)
+
+    @staticmethod
+    def _load_state(state_id: str) -> RunState:
+        path = DEFERRED_DIR / f"{state_id}.json"
+        data = json.loads(path.read_text())
+        messages = []
+        for m in data["messages"]:
+            tool_calls = [
+                ToolCall(id=tc["id"], name=tc["name"], arguments=tc["arguments"])
+                for tc in m.get("tool_calls", [])
+            ]
+            messages.append(Message(
+                role=m["role"],
+                content=m["content"],
+                tool_calls=tool_calls,
+                tool_call_id=m.get("tool_call_id"),
+            ))
+        return RunState(
+            state_id=data["state_id"],
+            agent_name=data["agent_name"],
+            task=data["task"],
+            messages=messages,
+            system=data["system"],
+            mode=data["mode"],
+            round=data["round"],
+            max_rounds=data["max_rounds"],
+            session_id=data["session_id"],
+            timestamp=data.get("timestamp", 0),
+        )
+
+    @staticmethod
+    def list_deferred() -> list[RunState]:
+        if not DEFERRED_DIR.exists():
+            return []
+        states = []
+        for f in sorted(DEFERRED_DIR.glob("*.json")):
+            try:
+                states.append(Agent._load_state(f.stem))
+            except (json.JSONDecodeError, KeyError):
+                pass
+        return states
 
     def _log_llm(self, response: Response) -> None:
         self.telemetry.llm_call(
