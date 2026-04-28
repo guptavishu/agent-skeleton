@@ -57,6 +57,8 @@ def main():
     parser.add_argument("--orch", action="append", default=[], help="Add orchestration mode (can repeat)")
     parser.add_argument("--max-rounds", type=int, default=20, help="Max loop iterations")
     parser.add_argument("--name", default="agentos", help="Agent name")
+    parser.add_argument("--web", action="store_true", help="Start web UI")
+    parser.add_argument("--port", type=int, default=8420, help="Web UI port")
     args = parser.parse_args()
 
     # load skills from files
@@ -83,8 +85,10 @@ def main():
         on_code_result=_print_code_result,
     )
 
-    if args.prompt:
-        # batch mode
+    if args.web:
+        from .web import run_server
+        run_server(agent, port=args.port)
+    elif args.prompt:
         response = agent.run(
             args.prompt,
             tools_only=args.tools_only,
@@ -94,7 +98,6 @@ def main():
         )
         print(response.content)
     else:
-        # interactive mode
         _interactive(agent, args)
 
 
