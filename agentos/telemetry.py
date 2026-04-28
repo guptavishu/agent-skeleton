@@ -1,5 +1,3 @@
-"""Structured JSON logging for agent trajectories."""
-
 from __future__ import annotations
 
 import json
@@ -11,10 +9,7 @@ DEFAULT_LOG_PATH = Path.home() / ".agentos" / "agentos.log"
 
 
 class Telemetry:
-    """Appends structured JSON events to a log file.
-
-    Each event is one JSON line with a timestamp, event type, and payload.
-    """
+    """Appends structured JSON-line events to a log file."""
 
     def __init__(self, path: Path | str | None = None):
         self.path = Path(path or DEFAULT_LOG_PATH)

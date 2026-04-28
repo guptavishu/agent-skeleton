@@ -1,5 +1,3 @@
-"""Memory system — protocol + file-backed default implementation."""
-
 from __future__ import annotations
 
 import json
@@ -11,10 +9,7 @@ from .types import MemoryEntry
 
 @runtime_checkable
 class Memory(Protocol):
-    """Structural interface for agent memory backends.
-
-    Implement these methods to plug in any storage: SQLite, Redis, vector DB, etc.
-    """
+    """Implement these methods to plug in any storage backend."""
 
     def store(self, key: str, content: str, metadata: dict | None = None) -> MemoryEntry: ...
     def retrieve(self, query: str, limit: int = 5) -> list[MemoryEntry]: ...
@@ -36,7 +31,6 @@ class FileMemory:
         return self.path / f"{entry_id}.json"
 
     def store(self, key: str, content: str, metadata: dict | None = None) -> MemoryEntry:
-        # check for existing entry with same key — update instead of duplicate
         for existing in self.list_all():
             if existing.key == key:
                 existing.content = content
@@ -59,7 +53,6 @@ class FileMemory:
         self._entry_path(entry.id).write_text(json.dumps(data, indent=2))
 
     def retrieve(self, query: str, limit: int = 5) -> list[MemoryEntry]:
-        """Simple keyword search across keys and content."""
         query_lower = query.lower()
         results = []
         for entry in self.list_all():

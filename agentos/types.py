@@ -1,5 +1,3 @@
-"""Core types for agent-skeleton."""
-
 from __future__ import annotations
 
 import time

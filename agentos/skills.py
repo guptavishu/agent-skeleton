@@ -1,5 +1,3 @@
-"""Skill system — reusable prompt+tool bundles with filesystem discovery."""
-
 from __future__ import annotations
 
 import importlib.util
@@ -38,7 +36,6 @@ class Skill:
         return skill
 
 
-# Default directories to scan for skills
 SKILL_DIRS = [
     Path.home() / ".agentos" / "skills",
     Path.cwd() / "skills",
@@ -46,8 +43,6 @@ SKILL_DIRS = [
 
 
 class SkillRegistry:
-    """Discovers and manages skills."""
-
     def __init__(self):
         self._skills: dict[str, Skill] = {}
 
@@ -64,7 +59,6 @@ class SkillRegistry:
         return list(self._skills.keys())
 
     def discover(self, dirs: list[Path] | None = None) -> list[Skill]:
-        """Scan directories for skill files (*.py) and load them."""
         found = []
         for d in (dirs or SKILL_DIRS):
             if not d.is_dir():
@@ -81,7 +75,6 @@ class SkillRegistry:
         return found
 
     def get_tools(self, skill_names: list[str] | None = None) -> list[Tool]:
-        """Collect tools from named skills, or all skills if none specified."""
         tools = []
         targets = skill_names or list(self._skills.keys())
         for name in targets:
@@ -91,7 +84,6 @@ class SkillRegistry:
         return tools
 
     def get_prompts(self, skill_names: list[str] | None = None) -> str:
-        """Compose prompt fragments from named skills."""
         parts = []
         targets = skill_names or list(self._skills.keys())
         for name in targets:

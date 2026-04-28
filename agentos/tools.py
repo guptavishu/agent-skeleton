@@ -1,5 +1,3 @@
-"""Tool registry with auto-schema generation and built-in tools."""
-
 from __future__ import annotations
 
 import inspect
@@ -69,8 +67,6 @@ class Tool:
 
 
 class ToolRegistry:
-    """Manages tool registration and execution."""
-
     def __init__(self):
         self._tools: dict[str, Tool] = {}
 
@@ -97,7 +93,6 @@ class ToolRegistry:
             return ToolResult(call.id, "", error=f"{type(e).__name__}: {e}")
 
 
-# --- Built-in tools ---
 
 def read_file(path: str) -> str:
     """Read a file and return its contents."""

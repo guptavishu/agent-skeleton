@@ -1,5 +1,3 @@
-"""Agent — the main entry point. Wraps a provider with skills, memory, tools, and HITL."""
-
 from __future__ import annotations
 
 import uuid
@@ -18,8 +16,6 @@ from .types import Message, Response, ToolCall, ToolResult
 
 MAX_ROUNDS = 20
 
-# --- System prompts ---
-
 HYBRID_PROMPT = """You have two ways to act:
 
 1. **Tool calls** — use the provided tools for discrete operations (reading files, running commands, etc.)
@@ -29,6 +25,8 @@ Pick whichever fits each step. You can mix both in a single response.
 When you have the final answer, respond with plain text (no tool calls, no code blocks)."""
 
 CODE_EXEC_PROMPT = """You can execute Python code by writing it in fenced ```python blocks.
+The code runs locally on the user's machine in a subprocess with full filesystem and network access.
+You can read/write files, run shell commands via subprocess, install packages, and do anything Python can do.
 Always print() your results so they appear in stdout.
 When you have the final answer, respond with plain text (no code blocks)."""
 
@@ -105,12 +103,10 @@ class Agent:
         self.telemetry = telemetry or Telemetry()
         self.memory = memory
 
-        # prompts: builtins + user overrides
         self.prompts = dict(BUILTIN_PROMPTS)
         if prompts:
             self.prompts.update(prompts)
 
-        # tools: builtins + user-provided
         self.tool_registry = ToolRegistry()
         if builtins:
             for t in BUILTIN_TOOLS:
@@ -118,18 +114,15 @@ class Agent:
         for t in (tools or []):
             self.tool_registry.register(t)
 
-        # skills: explicit + discovered
         self.skill_registry = SkillRegistry()
         for s in (skills or []):
             self.skill_registry.register(s)
         if discover_skills:
             self.skill_registry.discover()
 
-        # register skill tools
         for t in self.skill_registry.get_tools():
             self.tool_registry.register(t)
 
-        # callbacks
         self.on_tool_call = on_tool_call
         self.on_tool_result = on_tool_result
         self.on_code_exec = on_code_exec
@@ -160,13 +153,6 @@ class Agent:
         orchestration: list[str] | None = None,
         max_rounds: int = MAX_ROUNDS,
     ) -> Response:
-        """Run the agent loop on a task.
-
-        Default: hybrid mode (tools + code).
-        tools_only=True: only tool calls, no code execution.
-        exec_code=True: only code execution, no tool calls.
-        plan=True: adds planning prompt to orchestration.
-        """
         session_id = uuid.uuid4().hex[:12]
         self.telemetry.set_session(session_id)
         self.telemetry.agent_start(self.name, task)
@@ -207,8 +193,6 @@ class Agent:
         """Delegate a sub-task to another agent."""
         return self.coordinator.delegate(agent, task)
 
-    # --- Execution loops ---
-
     def _run_tool_loop(self, messages: list[Message], system: str, max_rounds: int) -> Response:
         tools = self.tool_registry.list()
         for _ in range(max_rounds):
@@ -244,8 +228,7 @@ class Agent:
 
             messages.append(Message(role="assistant", content=response.content))
             for code in blocks:
-                result = self._execute_code(code)
-                output = result if isinstance(result, str) else f"{result}"
+                output = self._execute_code(code)
                 messages.append(Message(role="user", content=f"[Code output]\n{output}"))
 
         return response
@@ -268,7 +251,6 @@ class Agent:
 
             messages.append(Message(role="assistant", content=response.content, tool_calls=response.tool_calls))
 
-            # handle tool calls
             if has_tool_calls:
                 for tc in response.tool_calls:
                     result = self._execute_tool_call(tc)
@@ -276,15 +258,12 @@ class Agent:
                         Message(role="tool", content=result.output or result.error or "", tool_call_id=tc.id)
                     )
 
-            # handle code blocks
             if has_code:
                 for code in extract_code_blocks(response.content):
                     output = self._execute_code(code)
                     messages.append(Message(role="user", content=f"[Code output]\n{output}"))
 
         return response
-
-    # --- Helpers ---
 
     def _build_system(self, orchestration: list[str], tools_only: bool, exec_code: bool) -> str:
         parts = []
@@ -329,8 +308,7 @@ class Agent:
             self.on_code_exec(code)
         self.telemetry.code_exec(code)
 
-        from .executor import execute_code as exec_fn
-        result = exec_fn(code)
+        result = execute_code(code)
 
         output = result.stdout
         if result.stderr:

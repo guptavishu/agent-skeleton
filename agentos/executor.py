@@ -1,5 +1,3 @@
-"""Code execution engine — runs LLM-emitted Python in a subprocess."""
-
 from __future__ import annotations
 
 import re
@@ -14,7 +12,6 @@ CODE_BLOCK_RE = re.compile(r"```(?:python)?\s*\n(.*?)```", re.DOTALL)
 
 
 def extract_code_blocks(text: str) -> list[str]:
-    """Pull all fenced code blocks from LLM output."""
     return CODE_BLOCK_RE.findall(text)
 
 
@@ -23,7 +20,6 @@ def execute_code(
     timeout: int = EXEC_TIMEOUT,
     cwd: str | None = None,
 ) -> ExecResult:
-    """Run Python code in a subprocess and return the result."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
         f.write(code)
         tmp_path = f.name
