@@ -2,7 +2,7 @@
 
 from .agent import Agent, RunHandle
 from .coordinator import Coordinator, SequentialCoordinator
-from .executor import execute_code, extract_code_blocks
+from .executor import LocalSandbox, RestrictedSandbox, Sandbox, execute_code, extract_code_blocks
 from .hitl import HITLPolicy
 from .memory import FileMemory, Memory
 from .provider import OllamaProvider, Provider, parse_tool_calls_from_text
@@ -16,6 +16,7 @@ __all__ = [
     "BUILTIN_TOOLS",
     "Coordinator",
     "ExecResult",
+    "LocalSandbox",
     "FileMemory",
     "HITLPolicy",
     "Memory",
@@ -23,9 +24,11 @@ __all__ = [
     "Message",
     "OllamaProvider",
     "Provider",
+    "RestrictedSandbox",
     "Response",
     "RunHandle",
     "RunState",
+    "Sandbox",
     "SequentialCoordinator",
     "StopReason",
     "StreamEvent",

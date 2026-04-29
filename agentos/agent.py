@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .coordinator import Coordinator, SequentialCoordinator
-from .executor import execute_code, extract_code_blocks
+from .executor import LocalSandbox, Sandbox, execute_code, extract_code_blocks
 from .hitl import PERMISSIVE, HITLPolicy
 from .memory import FileMemory, Memory
 from .provider import OllamaProvider, Provider
@@ -149,8 +149,8 @@ class Agent:
         prompts: dict[str, str] | None = None,
         discover_skills: bool = True,
         builtins: bool = True,
+        sandbox: Sandbox | None = None,
         telemetry: Telemetry | None = None,
-        # callbacks for visibility
         on_tool_call: Callable[[ToolCall], None] | None = None,
         on_tool_result: Callable[[ToolResult], None] | None = None,
         on_code_exec: Callable[[str], None] | None = None,
@@ -175,6 +175,7 @@ class Agent:
         self.coordinator = coordinator or SequentialCoordinator()
         self.delegates = delegates or []
         self.orchestration = orchestration or ["repair"]
+        self.sandbox = sandbox or LocalSandbox()
         self.telemetry = telemetry or Telemetry()
         self.memory = memory
 
@@ -528,7 +529,7 @@ class Agent:
             self.on_code_exec(code)
         self.telemetry.code_exec(code)
 
-        result = execute_code(code)
+        result = self.sandbox.execute(code)
 
         output = result.stdout
         if result.stderr:
