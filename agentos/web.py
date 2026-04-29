@@ -14,9 +14,6 @@ from .types import StopReason
 class ChatRequest(BaseModel):
     message: str
     session_id: str | None = None
-    tools_only: bool = False
-    exec_code: bool = False
-    plan: bool = False
 
 
 class ChatResponse(BaseModel):
@@ -35,18 +32,14 @@ class SessionInfo(BaseModel):
 
 _agent: Agent | None = None
 _sessions: dict[str, dict] = {}
+_run_config: dict = {}
 
 
-def _get_or_create_session(
-    session_id: str | None,
-    tools_only: bool = False,
-    exec_code: bool = False,
-    plan: bool = False,
-) -> tuple[str, Session]:
+def _get_or_create_session(session_id: str | None) -> tuple[str, Session]:
     if session_id and session_id in _sessions:
         return session_id, _sessions[session_id]["session"]
 
-    session = _agent.session(tools_only=tools_only, exec_code=exec_code, plan=plan)
+    session = _agent.session(**_run_config)
     sid = session.session_id
     _sessions[sid] = {
         "session": session,
@@ -56,9 +49,17 @@ def _get_or_create_session(
     return sid, session
 
 
-def create_app(agent: Agent | None = None) -> FastAPI:
-    global _agent
+def create_app(
+    agent: Agent | None = None,
+    tools_only: bool = False,
+    exec_code: bool = False,
+    plan: bool = False,
+) -> FastAPI:
+    global _agent, _run_config
     _agent = agent or Agent("web-agent", memory=FileMemory())
+    _run_config = {
+        k: v for k, v in {"tools_only": tools_only, "exec_code": exec_code, "plan": plan}.items() if v
+    }
 
     app = FastAPI(title="AgentOS")
 
@@ -68,9 +69,7 @@ def create_app(agent: Agent | None = None) -> FastAPI:
 
     @app.post("/chat")
     def chat(req: ChatRequest):
-        sid, session = _get_or_create_session(
-            req.session_id, req.tools_only, req.exec_code, req.plan,
-        )
+        sid, session = _get_or_create_session(req.session_id)
         try:
             response = session.send(req.message)
             if not _sessions[sid]["title"]:
@@ -100,9 +99,7 @@ def create_app(agent: Agent | None = None) -> FastAPI:
 
     @app.post("/chat/stream")
     def chat_stream(req: ChatRequest):
-        sid, session = _get_or_create_session(
-            req.session_id, req.tools_only, req.exec_code, req.plan,
-        )
+        sid, session = _get_or_create_session(req.session_id)
         if not _sessions[sid]["title"]:
             _sessions[sid]["title"] = req.message[:50]
 
@@ -178,10 +175,18 @@ def create_app(agent: Agent | None = None) -> FastAPI:
     return app
 
 
-def run_server(agent: Agent | None = None, host: str = "127.0.0.1", port: int = 8420):
+def run_server(
+    agent: Agent | None = None,
+    host: str = "127.0.0.1",
+    port: int = 8420,
+    tools_only: bool = False,
+    exec_code: bool = False,
+    plan: bool = False,
+):
     import uvicorn
-    app = create_app(agent)
-    print(f"AgentOS web UI: http://{host}:{port}")
+    app = create_app(agent, tools_only=tools_only, exec_code=exec_code, plan=plan)
+    mode = "tools_only" if tools_only else ("code_only" if exec_code else "hybrid")
+    print(f"AgentOS web UI: http://{host}:{port} (mode={mode}, plan={plan})")
     uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
@@ -245,9 +250,6 @@ _INDEX_HTML = """\
   #send:disabled { opacity: 0.5; cursor: default; }
   #stop-btn { background: #dc2626; color: #fff; display: none; }
   #stop-btn:hover { background: #b91c1c; }
-  .mode-bar { display: flex; gap: 12px; padding: 0 20px; }
-  .mode-bar label { font-size: 12px; color: #888; display: flex; align-items: center; gap: 4px; cursor: pointer; }
-  .mode-bar input { accent-color: #2563eb; }
   .empty-state { flex: 1; display: flex; align-items: center; justify-content: center;
                  color: #444; font-size: 14px; }
 </style>
@@ -264,12 +266,6 @@ _INDEX_HTML = """\
 
 <div id="main">
   <div id="header">
-    <div class="mode-bar">
-      <label><input type="radio" name="mode" value="hybrid" checked> hybrid</label>
-      <label><input type="radio" name="mode" value="tools_only"> tools only</label>
-      <label><input type="radio" name="mode" value="code_only"> code only</label>
-      <label><input type="checkbox" id="plan-check"> planning</label>
-    </div>
     <span class="info" id="status">ready</span>
   </div>
   <div id="messages"><div class="empty-state">Start a new conversation</div></div>
@@ -306,11 +302,6 @@ function addMsg(role, text, meta) {
   }
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
-}
-
-function getMode() {
-  const checked = document.querySelector('input[name="mode"]:checked');
-  return checked ? checked.value : 'hybrid';
 }
 
 async function loadSessions() {
@@ -377,9 +368,6 @@ async function send() {
   input.value = '';
   addMsg('user', text);
 
-  const mode = getMode();
-  const plan = document.getElementById('plan-check').checked;
-
   sendBtn.disabled = true;
   input.disabled = true;
   stopBtn.style.display = 'inline-block';
@@ -392,9 +380,6 @@ async function send() {
       body: JSON.stringify({
         message: text,
         session_id: currentSessionId,
-        tools_only: mode === 'tools_only',
-        exec_code: mode === 'code_only',
-        plan: plan,
       }),
     });
 

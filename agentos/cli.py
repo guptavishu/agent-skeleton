@@ -87,7 +87,13 @@ def main():
 
     if args.web:
         from .web import run_server
-        run_server(agent, port=args.port)
+        run_server(
+            agent,
+            port=args.port,
+            tools_only=args.tools_only,
+            exec_code=args.exec_code,
+            plan=args.plan,
+        )
     elif args.prompt:
         response = agent.run(
             args.prompt,
