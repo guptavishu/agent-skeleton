@@ -1,11 +1,17 @@
 """agent-skeleton — thin, extensible agent framework with reasonable defaults."""
 
 from .agent import Agent, RunHandle, Session
-from .coordinator import Coordinator, SequentialCoordinator
-from .executor import LocalSandbox, RestrictedSandbox, Sandbox, execute_code, extract_code_blocks
+from .executor import execute_code, extract_code_blocks
 from .hitl import HITLPolicy
-from .memory import FileMemory, Memory
-from .provider import OllamaProvider, Provider, parse_tool_calls_from_text
+from .protocols import Coordinator, Memory, Provider, Sandbox
+from .providers import (
+    FileMemory,
+    LocalSandbox,
+    OllamaProvider,
+    RestrictedSandbox,
+    SequentialCoordinator,
+    parse_tool_calls_from_text,
+)
 from .skills import Skill, SkillRegistry
 from .telemetry import Telemetry
 from .tools import BUILTIN_TOOLS, Tool, ToolRegistry
@@ -16,9 +22,9 @@ __all__ = [
     "BUILTIN_TOOLS",
     "Coordinator",
     "ExecResult",
-    "LocalSandbox",
     "FileMemory",
     "HITLPolicy",
+    "LocalSandbox",
     "Memory",
     "MemoryEntry",
     "Message",
@@ -29,12 +35,12 @@ __all__ = [
     "RunHandle",
     "RunState",
     "Sandbox",
-    "Session",
     "SequentialCoordinator",
-    "StopReason",
-    "StreamEvent",
+    "Session",
     "Skill",
     "SkillRegistry",
+    "StopReason",
+    "StreamEvent",
     "Telemetry",
     "Tool",
     "ToolCall",

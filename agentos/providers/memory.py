@@ -2,19 +2,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Protocol, runtime_checkable
 
-from .types import MemoryEntry
-
-
-@runtime_checkable
-class Memory(Protocol):
-    """Implement these methods to plug in any storage backend."""
-
-    def store(self, key: str, content: str, metadata: dict | None = None) -> MemoryEntry: ...
-    def retrieve(self, query: str, limit: int = 5) -> list[MemoryEntry]: ...
-    def forget(self, key: str) -> bool: ...
-    def list_all(self) -> list[MemoryEntry]: ...
+from ..types import MemoryEntry
 
 
 class FileMemory:

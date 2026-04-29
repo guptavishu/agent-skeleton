@@ -3,7 +3,7 @@
 import tempfile
 import os
 
-from agentos.executor import LocalSandbox, RestrictedSandbox
+from agentos.providers.sandbox import LocalSandbox, RestrictedSandbox
 
 print("=" * 60)
 print("1. LocalSandbox — full access (default)")

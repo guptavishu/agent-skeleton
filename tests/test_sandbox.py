@@ -4,7 +4,8 @@ import os
 import tempfile
 from pathlib import Path
 
-from agentos.executor import LocalSandbox, RestrictedSandbox, Sandbox
+from agentos.protocols import Sandbox
+from agentos.providers.sandbox import LocalSandbox, RestrictedSandbox
 
 
 # --- LocalSandbox ---

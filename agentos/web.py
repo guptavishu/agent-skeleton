@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 from .agent import Agent, Session
-from .memory import FileMemory
+from .providers import FileMemory
 from .types import StopReason
 
 

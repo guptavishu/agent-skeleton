@@ -8,7 +8,7 @@ import sys
 import threading
 
 from .agent import Agent
-from .memory import FileMemory
+from .providers import FileMemory
 from .skills import Skill
 from .tools import Tool
 from .types import StopReason, ToolCall, ToolResult

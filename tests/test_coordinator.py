@@ -1,6 +1,6 @@
 """Tests for coordinator."""
 
-from agentos.coordinator import SequentialCoordinator
+from agentos.providers.coordinator import SequentialCoordinator
 from agentos.types import Response
 
 

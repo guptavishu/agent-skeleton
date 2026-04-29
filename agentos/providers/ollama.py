@@ -1,62 +1,12 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator, Iterator
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import Any
 
-from .types import Message, Response, ToolCall, Usage
+from ..types import Message, Response, ToolCall, Usage
 
-if TYPE_CHECKING:
-    from .tools import Tool
-
-
-@runtime_checkable
-class Provider(Protocol):
-    """Implement these methods to plug in any LLM backend."""
-
-    def complete(
-        self,
-        messages: list[Message],
-        *,
-        system: str = "",
-        model: str = "",
-        temperature: float = 0.7,
-        max_tokens: int = 4096,
-        tools: list[Tool] | None = None,
-    ) -> Response: ...
-
-    def stream(
-        self,
-        messages: list[Message],
-        *,
-        system: str = "",
-        model: str = "",
-        temperature: float = 0.7,
-        max_tokens: int = 4096,
-        tools: list[Tool] | None = None,
-    ) -> Iterator[str]: ...
-
-    async def acomplete(
-        self,
-        messages: list[Message],
-        *,
-        system: str = "",
-        model: str = "",
-        temperature: float = 0.7,
-        max_tokens: int = 4096,
-        tools: list[Tool] | None = None,
-    ) -> Response: ...
-
-    async def astream(
-        self,
-        messages: list[Message],
-        *,
-        system: str = "",
-        model: str = "",
-        temperature: float = 0.7,
-        max_tokens: int = 4096,
-        tools: list[Tool] | None = None,
-    ) -> AsyncIterator[str]: ...
+DEFAULT_MODEL = "qwen2.5-coder:32b"
+DEFAULT_BASE_URL = "http://localhost:11434"
 
 
 def parse_tool_calls_from_text(content: str) -> tuple[list[ToolCall], str]:
@@ -121,16 +71,12 @@ def _try_extract_json(text: str, start: int) -> tuple[Any, int]:
     return None, start
 
 
-DEFAULT_MODEL = "qwen2.5-coder:32b"
-DEFAULT_BASE_URL = "http://localhost:11434"
-
-
 class OllamaProvider:
     """Talks to a local Ollama instance via REST API."""
 
     def __init__(self, base_url: str = DEFAULT_BASE_URL, model: str = DEFAULT_MODEL):
         try:
-            import httpx  # noqa: F811
+            import httpx
         except ImportError:
             raise ImportError(
                 "OllamaProvider requires httpx. Install it with: pip install agentos[ollama]"
@@ -146,7 +92,7 @@ class OllamaProvider:
         model: str,
         temperature: float,
         max_tokens: int,
-        tools: list[Tool] | None,
+        tools,
         stream: bool,
     ) -> dict[str, Any]:
         msgs = []

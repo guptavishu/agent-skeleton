@@ -2,7 +2,7 @@
 
 import tempfile
 
-from agentos.memory import FileMemory
+from agentos.providers.memory import FileMemory
 
 
 def _make_memory():

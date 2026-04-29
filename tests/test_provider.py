@@ -1,6 +1,6 @@
 """Tests for OllamaProvider parsing logic (no network calls)."""
 
-from agentos.provider import OllamaProvider, parse_tool_calls_from_text, _try_extract_json
+from agentos.providers.ollama import OllamaProvider, parse_tool_calls_from_text, _try_extract_json
 from agentos.types import ToolCall
 
 
