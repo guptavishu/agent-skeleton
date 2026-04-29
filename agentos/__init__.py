@@ -1,6 +1,6 @@
 """agent-skeleton — thin, extensible agent framework with reasonable defaults."""
 
-from .agent import Agent, RunHandle
+from .agent import Agent, RunHandle, Session
 from .coordinator import Coordinator, SequentialCoordinator
 from .executor import LocalSandbox, RestrictedSandbox, Sandbox, execute_code, extract_code_blocks
 from .hitl import HITLPolicy
@@ -29,6 +29,7 @@ __all__ = [
     "RunHandle",
     "RunState",
     "Sandbox",
+    "Session",
     "SequentialCoordinator",
     "StopReason",
     "StreamEvent",

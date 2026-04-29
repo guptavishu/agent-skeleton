@@ -115,6 +115,149 @@ class RunHandle:
                 pass
 
 
+class Session:
+    """Multi-turn conversation session. Maintains message history across calls."""
+
+    def __init__(
+        self,
+        agent: Agent,
+        *,
+        tools_only: bool = False,
+        exec_code: bool = False,
+        plan: bool = False,
+        orchestration: list[str] | None = None,
+        max_rounds: int = MAX_ROUNDS,
+    ):
+        self._agent = agent
+        self._tools_only = tools_only
+        self._exec_code = exec_code
+        self._plan = plan
+        self._orchestration = orchestration
+        self._max_rounds = max_rounds
+
+        self._session_id = uuid.uuid4().hex[:12]
+        self._messages: list[Message] = []
+        self._system = self._build_system()
+
+    def _build_system(self) -> str:
+        orch = list(self._orchestration or self._agent.orchestration)
+        if self._plan and "planning" not in orch:
+            orch.insert(0, "planning")
+        system = self._agent._build_system(orch, tools_only=self._tools_only, exec_code=self._exec_code)
+        skill_prompts = self._agent.skill_registry.get_prompts()
+        if skill_prompts:
+            system += f"\n\n{skill_prompts}"
+        return system
+
+    def send(self, message: str, **kwargs) -> Response:
+        """Send a message and get a response. Conversation history is preserved."""
+        self._agent._stopped = False
+        self._agent._defer_requested = False
+        self._agent.telemetry.set_session(self._session_id)
+
+        system = self._system
+        if self._agent.memory:
+            memories = self._agent.memory.retrieve(message, limit=5)
+            if memories:
+                memory_text = "\n".join(f"- [{m.key}]: {m.content}" for m in memories)
+                system += f"\n\n## Relevant Memory\n{memory_text}"
+
+        self._messages.append(Message(role="user", content=message))
+
+        mode = "code_only" if self._exec_code else ("tools_only" if self._tools_only else "hybrid")
+        response = self._agent._run_loop(
+            self._messages, system, mode,
+            self._max_rounds, self._session_id, message,
+        )
+
+        self._messages.append(Message(role="assistant", content=response.content))
+        return response
+
+    def send_stream(self, message: str, **kwargs) -> Iterator[StreamEvent]:
+        """Send a message and stream the response. Conversation history is preserved."""
+        self._agent._stopped = False
+        self._agent._defer_requested = False
+        self._agent.telemetry.set_session(self._session_id)
+
+        system = self._system
+        if self._agent.memory:
+            memories = self._agent.memory.retrieve(message, limit=5)
+            if memories:
+                memory_text = "\n".join(f"- [{m.key}]: {m.content}" for m in memories)
+                system += f"\n\n## Relevant Memory\n{memory_text}"
+
+        self._messages.append(Message(role="user", content=message))
+
+        orch = list(self._orchestration or self._agent.orchestration)
+        if self._plan and "planning" not in orch:
+            orch.insert(0, "planning")
+
+        use_tools = not self._exec_code
+        use_code = not self._tools_only
+        tools = self._agent.tool_registry.list() if use_tools else None
+        full_text = ""
+
+        for round_num in range(self._max_rounds):
+            if self._agent._stopped:
+                yield StreamEvent("done", Response(content="", stop_reason=StopReason.INTERRUPTED.value))
+                return
+
+            chunks: list[str] = []
+            try:
+                for chunk in self._agent.provider.stream(
+                    self._messages, system=system, model=self._agent.model,
+                    temperature=self._agent.temperature, max_tokens=self._agent.max_tokens,
+                    tools=tools,
+                ):
+                    chunks.append(chunk)
+                    yield StreamEvent("text", chunk)
+            except Exception as e:
+                yield StreamEvent("error", str(e))
+                return
+
+            full_text = "".join(chunks)
+            tool_calls, remaining_text = parse_tool_calls_from_text(full_text)
+            has_tool_calls = use_tools and bool(tool_calls)
+            has_code = use_code and bool(extract_code_blocks(full_text))
+
+            if not has_tool_calls and not has_code:
+                self._messages.append(Message(role="assistant", content=full_text))
+                yield StreamEvent("done", Response(content=full_text, stop_reason=StopReason.DONE.value))
+                return
+
+            self._messages.append(Message(role="assistant", content=remaining_text, tool_calls=tool_calls))
+
+            if has_tool_calls:
+                for tc in tool_calls:
+                    yield StreamEvent("tool_call", tc)
+                    result = self._agent._execute_tool_call(tc)
+                    yield StreamEvent("tool_result", result)
+                    self._messages.append(Message(
+                        role="tool", content=result.output or result.error or "", tool_call_id=tc.id,
+                    ))
+
+            if has_code:
+                for code in extract_code_blocks(full_text):
+                    yield StreamEvent("code_exec", code)
+                    output = self._agent._execute_code(code)
+                    yield StreamEvent("code_result", output)
+                    self._messages.append(Message(role="user", content=f"[Code output]\n{output}"))
+
+        yield StreamEvent("done", Response(content=full_text, stop_reason=StopReason.MAX_ROUNDS.value))
+
+    @property
+    def messages(self) -> list[Message]:
+        return list(self._messages)
+
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+
+    def clear(self) -> None:
+        """Reset conversation history."""
+        self._messages.clear()
+
+
 class Agent:
     """An agent that can use tools, execute code, and delegate to other agents.
 
@@ -417,6 +560,25 @@ class Agent:
             handle._finish(response)
         except Exception as e:
             handle._fail(e)
+
+    def session(
+        self,
+        *,
+        tools_only: bool = False,
+        exec_code: bool = False,
+        plan: bool = False,
+        orchestration: list[str] | None = None,
+        max_rounds: int = MAX_ROUNDS,
+    ) -> Session:
+        """Create a multi-turn conversation session."""
+        return Session(
+            self,
+            tools_only=tools_only,
+            exec_code=exec_code,
+            plan=plan,
+            orchestration=orchestration,
+            max_rounds=max_rounds,
+        )
 
     def delegate(self, agent: Agent, task: str) -> Response:
         """Delegate a sub-task to another agent."""
