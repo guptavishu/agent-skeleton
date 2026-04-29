@@ -76,6 +76,13 @@ class Memory(Protocol):
 
 
 @runtime_checkable
+class ContextPolicy(Protocol):
+    """Implement this to control how messages are trimmed to fit the context window."""
+
+    def manage(self, messages: list[Message], max_tokens: int) -> list[Message]: ...
+
+
+@runtime_checkable
 class Coordinator(Protocol):
     """Implement this to control multi-agent delegation strategies."""
 

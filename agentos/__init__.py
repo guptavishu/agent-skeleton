@@ -3,13 +3,15 @@
 from .agent import Agent, RunHandle, Session
 from .executor import execute_code, extract_code_blocks
 from .hitl import HITLPolicy
-from .protocols import Coordinator, Memory, Provider, Sandbox
+from .protocols import ContextPolicy, Coordinator, Memory, Provider, Sandbox
 from .providers import (
     FileMemory,
     LocalSandbox,
     OllamaProvider,
     RestrictedSandbox,
     SequentialCoordinator,
+    SummarizeContext,
+    TokenWindowContext,
     parse_tool_calls_from_text,
 )
 from .skills import Skill, SkillRegistry
@@ -20,6 +22,7 @@ from .types import ExecResult, MemoryEntry, Message, Response, RunState, StopRea
 __all__ = [
     "Agent",
     "BUILTIN_TOOLS",
+    "ContextPolicy",
     "Coordinator",
     "ExecResult",
     "FileMemory",
@@ -41,7 +44,9 @@ __all__ = [
     "SkillRegistry",
     "StopReason",
     "StreamEvent",
+    "SummarizeContext",
     "Telemetry",
+    "TokenWindowContext",
     "Tool",
     "ToolCall",
     "ToolRegistry",

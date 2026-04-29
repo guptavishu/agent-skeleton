@@ -74,7 +74,9 @@ def _try_extract_json(text: str, start: int) -> tuple[Any, int]:
 class OllamaProvider:
     """Talks to a local Ollama instance via REST API."""
 
-    def __init__(self, base_url: str = DEFAULT_BASE_URL, model: str = DEFAULT_MODEL):
+    context_window: int = 32768
+
+    def __init__(self, base_url: str = DEFAULT_BASE_URL, model: str = DEFAULT_MODEL, context_window: int = 32768):
         try:
             import httpx
         except ImportError:
@@ -82,6 +84,7 @@ class OllamaProvider:
                 "OllamaProvider requires httpx. Install it with: pip install agentos[ollama]"
             ) from None
         self._httpx = httpx
+        self.context_window = context_window
         self.base_url = base_url.rstrip("/")
         self.model = model
 

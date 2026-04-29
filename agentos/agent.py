@@ -10,8 +10,8 @@ from typing import Any, Callable
 
 from .executor import extract_code_blocks
 from .hitl import PERMISSIVE, HITLPolicy
-from .protocols import Coordinator, Memory, Provider, Sandbox
-from .providers import FileMemory, LocalSandbox, OllamaProvider, SequentialCoordinator, parse_tool_calls_from_text
+from .protocols import ContextPolicy, Coordinator, Memory, Provider, Sandbox
+from .providers import FileMemory, LocalSandbox, OllamaProvider, SequentialCoordinator, TokenWindowContext, parse_tool_calls_from_text
 from .skills import Skill, SkillRegistry
 from .telemetry import Telemetry
 from .tools import BUILTIN_TOOLS, Tool, ToolRegistry
@@ -201,9 +201,10 @@ class Session:
                 return
 
             chunks: list[str] = []
+            managed = self._agent.context.manage(self._messages, getattr(self._agent.provider, 'context_window', 128000))
             try:
                 for chunk in self._agent.provider.stream(
-                    self._messages, system=system, model=self._agent.model,
+                    managed, system=system, model=self._agent.model,
                     temperature=self._agent.temperature, max_tokens=self._agent.max_tokens,
                     tools=tools,
                 ):
@@ -291,6 +292,7 @@ class Agent:
         discover_skills: bool = True,
         builtins: bool = True,
         sandbox: Sandbox | None = None,
+        context: ContextPolicy | None = None,
         telemetry: Telemetry | None = None,
         on_tool_call: Callable[[ToolCall], None] | None = None,
         on_tool_result: Callable[[ToolResult], None] | None = None,
@@ -317,6 +319,7 @@ class Agent:
         self.delegates = delegates or []
         self.orchestration = orchestration or ["repair"]
         self.sandbox = sandbox or LocalSandbox()
+        self.context = context or TokenWindowContext()
         self.telemetry = telemetry or Telemetry()
         self.memory = memory
 
@@ -485,11 +488,11 @@ class Agent:
                 yield StreamEvent("done", Response(content="", stop_reason=StopReason.INTERRUPTED.value))
                 return
 
-            # Stream LLM response, yielding text chunks
             chunks: list[str] = []
+            managed = self.context.manage(messages, getattr(self.provider, 'context_window', 128000))
             try:
                 for chunk in self.provider.stream(
-                    messages, system=system, model=self.model,
+                    managed, system=system, model=self.model,
                     temperature=self.temperature, max_tokens=self.max_tokens,
                     tools=tools,
                 ):
@@ -615,8 +618,9 @@ class Agent:
                 response.stop_reason = reason.value
                 return response
 
+            managed = self.context.manage(messages, getattr(self.provider, 'context_window', 128000))
             response = self.provider.complete(
-                messages, system=system, model=self.model,
+                managed, system=system, model=self.model,
                 temperature=self.temperature, max_tokens=self.max_tokens,
                 tools=tools,
             )
