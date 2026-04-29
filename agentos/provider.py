@@ -4,8 +4,6 @@ import json
 from collections.abc import AsyncIterator, Iterator
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-import httpx
-
 from .types import Message, Response, ToolCall, Usage
 
 if TYPE_CHECKING:
@@ -69,6 +67,13 @@ class OllamaProvider:
     """Talks to a local Ollama instance via REST API."""
 
     def __init__(self, base_url: str = DEFAULT_BASE_URL, model: str = DEFAULT_MODEL):
+        try:
+            import httpx  # noqa: F811
+        except ImportError:
+            raise ImportError(
+                "OllamaProvider requires httpx. Install it with: pip install agentos[ollama]"
+            ) from None
+        self._httpx = httpx
         self.base_url = base_url.rstrip("/")
         self.model = model
 
@@ -209,13 +214,13 @@ class OllamaProvider:
 
     def complete(self, messages, *, system="", model="", temperature=0.7, max_tokens=4096, tools=None):
         payload = self._build_payload(messages, system, model, temperature, max_tokens, tools, stream=False)
-        resp = httpx.post(f"{self.base_url}/api/chat", json=payload, timeout=120)
+        resp = self._httpx.post(f"{self.base_url}/api/chat", json=payload, timeout=120)
         resp.raise_for_status()
         return self._parse_response(resp.json())
 
     def stream(self, messages, *, system="", model="", temperature=0.7, max_tokens=4096, tools=None):
         payload = self._build_payload(messages, system, model, temperature, max_tokens, tools, stream=True)
-        with httpx.stream("POST", f"{self.base_url}/api/chat", json=payload, timeout=120) as resp:
+        with self._httpx.stream("POST", f"{self.base_url}/api/chat", json=payload, timeout=120) as resp:
             resp.raise_for_status()
             for line in resp.iter_lines():
                 if line:
@@ -226,14 +231,14 @@ class OllamaProvider:
 
     async def acomplete(self, messages, *, system="", model="", temperature=0.7, max_tokens=4096, tools=None):
         payload = self._build_payload(messages, system, model, temperature, max_tokens, tools, stream=False)
-        async with httpx.AsyncClient() as client:
+        async with self._httpx.AsyncClient() as client:
             resp = await client.post(f"{self.base_url}/api/chat", json=payload, timeout=120)
             resp.raise_for_status()
             return self._parse_response(resp.json())
 
     async def astream(self, messages, *, system="", model="", temperature=0.7, max_tokens=4096, tools=None):
         payload = self._build_payload(messages, system, model, temperature, max_tokens, tools, stream=True)
-        async with httpx.AsyncClient() as client:
+        async with self._httpx.AsyncClient() as client:
             async with client.stream("POST", f"{self.base_url}/api/chat", json=payload, timeout=120) as resp:
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():

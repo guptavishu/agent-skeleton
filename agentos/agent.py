@@ -155,7 +155,16 @@ class Agent:
         on_code_result: Callable[[str], None] | None = None,
     ):
         self.name = name
-        self.provider = provider or OllamaProvider()
+        if provider is None:
+            try:
+                provider = OllamaProvider()
+            except ImportError:
+                raise TypeError(
+                    "No provider specified and OllamaProvider is not available. "
+                    "Either pass a provider: Agent(provider=MyProvider()) "
+                    "or install Ollama support: pip install agentos[ollama]"
+                ) from None
+        self.provider = provider
         self.model = model
         self.system = system
         self.temperature = temperature
