@@ -5,11 +5,11 @@ from .coordinator import Coordinator, SequentialCoordinator
 from .executor import execute_code, extract_code_blocks
 from .hitl import HITLPolicy
 from .memory import FileMemory, Memory
-from .provider import OllamaProvider, Provider
+from .provider import OllamaProvider, Provider, parse_tool_calls_from_text
 from .skills import Skill, SkillRegistry
 from .telemetry import Telemetry
 from .tools import BUILTIN_TOOLS, Tool, ToolRegistry
-from .types import ExecResult, MemoryEntry, Message, Response, RunState, StopReason, ToolCall, ToolResult, Usage
+from .types import ExecResult, MemoryEntry, Message, Response, RunState, StopReason, StreamEvent, ToolCall, ToolResult, Usage
 
 __all__ = [
     "Agent",
@@ -28,6 +28,7 @@ __all__ = [
     "RunState",
     "SequentialCoordinator",
     "StopReason",
+    "StreamEvent",
     "Skill",
     "SkillRegistry",
     "Telemetry",
@@ -38,4 +39,5 @@ __all__ = [
     "Usage",
     "execute_code",
     "extract_code_blocks",
+    "parse_tool_calls_from_text",
 ]

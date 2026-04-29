@@ -59,6 +59,68 @@ class Provider(Protocol):
     ) -> AsyncIterator[str]: ...
 
 
+def parse_tool_calls_from_text(content: str) -> tuple[list[ToolCall], str]:
+    """Extract tool calls from text when a model outputs them as JSON instead of structured calls."""
+    result = []
+    remaining = content
+
+    i = 0
+    spans_to_remove = []
+    while i < len(content):
+        if content[i] == '{':
+            obj, end = _try_extract_json(content, i)
+            if obj and isinstance(obj, dict) and "name" in obj and "arguments" in obj:
+                args = obj["arguments"]
+                if isinstance(args, str):
+                    args = json.loads(args)
+                result.append(ToolCall(
+                    id=f"call_{len(result)}",
+                    name=obj["name"],
+                    arguments=args,
+                ))
+                spans_to_remove.append((i, end))
+                i = end
+                continue
+        i += 1
+
+    if result:
+        for start, end in reversed(spans_to_remove):
+            remaining = remaining[:start] + remaining[end:]
+        remaining = remaining.strip()
+
+    return result, remaining
+
+
+def _try_extract_json(text: str, start: int) -> tuple[Any, int]:
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(start, len(text)):
+        c = text[i]
+        if escape:
+            escape = False
+            continue
+        if c == '\\' and in_string:
+            escape = True
+            continue
+        if c == '"' and not escape:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if c == '{':
+            depth += 1
+        elif c == '}':
+            depth -= 1
+            if depth == 0:
+                try:
+                    obj = json.loads(text[start:i + 1])
+                    return obj, i + 1
+                except (json.JSONDecodeError, ValueError):
+                    return None, start
+    return None, start
+
+
 DEFAULT_MODEL = "qwen2.5-coder:32b"
 DEFAULT_BASE_URL = "http://localhost:11434"
 
@@ -133,9 +195,8 @@ class OllamaProvider:
 
         content = msg.get("content", "")
 
-        # Fallback: some models emit tool calls as JSON text in content
         if not tool_calls and content:
-            parsed, remaining = self._try_parse_tool_call(content)
+            parsed, remaining = parse_tool_calls_from_text(content)
             if parsed:
                 tool_calls = parsed
                 content = remaining
@@ -149,68 +210,6 @@ class OllamaProvider:
             usage=Usage(tokens, completion, tokens + completion),
             tool_calls=tool_calls,
         )
-
-    def _try_parse_tool_call(self, content: str) -> tuple[list[ToolCall], str]:
-        """Extract tool calls from content when the model outputs them as JSON text."""
-        result = []
-        remaining = content
-
-        # Find JSON objects that look like tool calls: {"name": ..., "arguments": ...}
-        i = 0
-        spans_to_remove = []
-        while i < len(content):
-            if content[i] == '{':
-                obj, end = self._try_extract_json(content, i)
-                if obj and isinstance(obj, dict) and "name" in obj and "arguments" in obj:
-                    args = obj["arguments"]
-                    if isinstance(args, str):
-                        args = json.loads(args)
-                    result.append(ToolCall(
-                        id=f"call_{len(result)}",
-                        name=obj["name"],
-                        arguments=args,
-                    ))
-                    spans_to_remove.append((i, end))
-                    i = end
-                    continue
-            i += 1
-
-        if result:
-            for start, end in reversed(spans_to_remove):
-                remaining = remaining[:start] + remaining[end:]
-            remaining = remaining.strip()
-
-        return result, remaining
-
-    @staticmethod
-    def _try_extract_json(text: str, start: int) -> tuple[Any, int]:
-        depth = 0
-        in_string = False
-        escape = False
-        for i in range(start, len(text)):
-            c = text[i]
-            if escape:
-                escape = False
-                continue
-            if c == '\\' and in_string:
-                escape = True
-                continue
-            if c == '"' and not escape:
-                in_string = not in_string
-                continue
-            if in_string:
-                continue
-            if c == '{':
-                depth += 1
-            elif c == '}':
-                depth -= 1
-                if depth == 0:
-                    try:
-                        obj = json.loads(text[start:i + 1])
-                        return obj, i + 1
-                    except (json.JSONDecodeError, ValueError):
-                        return None, start
-        return None, start
 
     def complete(self, messages, *, system="", model="", temperature=0.7, max_tokens=4096, tools=None):
         payload = self._build_payload(messages, system, model, temperature, max_tokens, tools, stream=False)

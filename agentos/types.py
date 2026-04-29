@@ -60,6 +60,12 @@ class Response:
 
 
 @dataclass
+class StreamEvent:
+    type: str  # "text", "tool_call", "tool_result", "code_exec", "code_result", "done", "error"
+    data: Any = None
+
+
+@dataclass
 class RunState:
     state_id: str
     agent_name: str

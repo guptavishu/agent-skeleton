@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import threading
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -15,7 +16,8 @@ from .provider import OllamaProvider, Provider
 from .skills import Skill, SkillRegistry
 from .telemetry import Telemetry
 from .tools import BUILTIN_TOOLS, Tool, ToolRegistry
-from .types import Message, Response, RunState, StopReason, ToolCall, ToolResult
+from .provider import parse_tool_calls_from_text
+from .types import Message, Response, RunState, StopReason, StreamEvent, ToolCall, ToolResult
 
 DEFERRED_DIR = Path.home() / ".agentos" / "deferred"
 
@@ -292,6 +294,105 @@ class Agent:
 
         self.telemetry.agent_finish(self.name, len(state.messages))
         return response
+
+    def run_stream(
+        self,
+        task: str,
+        *,
+        tools_only: bool = False,
+        exec_code: bool = False,
+        plan: bool = False,
+        orchestration: list[str] | None = None,
+        max_rounds: int = MAX_ROUNDS,
+    ) -> Iterator[StreamEvent]:
+        """Run the agent loop, yielding StreamEvents as they happen.
+
+        Yields text chunks token-by-token, plus events for tool calls,
+        tool results, code execution, and completion.
+        """
+        self._stopped = False
+        self._defer_requested = False
+
+        session_id = uuid.uuid4().hex[:12]
+        self.telemetry.set_session(session_id)
+        self.telemetry.agent_start(self.name, task)
+
+        orch = list(orchestration or self.orchestration)
+        if plan and "planning" not in orch:
+            orch.insert(0, "planning")
+
+        system = self._build_system(orch, tools_only=tools_only, exec_code=exec_code)
+
+        if self.memory:
+            memories = self.memory.retrieve(task, limit=5)
+            if memories:
+                memory_text = "\n".join(f"- [{m.key}]: {m.content}" for m in memories)
+                system += f"\n\n## Relevant Memory\n{memory_text}"
+
+        skill_prompts = self.skill_registry.get_prompts()
+        if skill_prompts:
+            system += f"\n\n{skill_prompts}"
+
+        use_tools = not exec_code
+        use_code = not tools_only
+        tools = self.tool_registry.list() if use_tools else None
+        messages = [Message(role="user", content=task)]
+
+        for round_num in range(max_rounds):
+            if self._stopped:
+                yield StreamEvent("done", Response(content="", stop_reason=StopReason.INTERRUPTED.value))
+                return
+
+            # Stream LLM response, yielding text chunks
+            chunks: list[str] = []
+            try:
+                for chunk in self.provider.stream(
+                    messages, system=system, model=self.model,
+                    temperature=self.temperature, max_tokens=self.max_tokens,
+                    tools=tools,
+                ):
+                    chunks.append(chunk)
+                    yield StreamEvent("text", chunk)
+            except Exception as e:
+                yield StreamEvent("error", str(e))
+                return
+
+            full_text = "".join(chunks)
+
+            # Parse tool calls from streamed text
+            tool_calls, remaining_text = parse_tool_calls_from_text(full_text)
+            has_tool_calls = use_tools and bool(tool_calls)
+            has_code = use_code and bool(extract_code_blocks(full_text))
+
+            if not has_tool_calls and not has_code:
+                response = Response(content=full_text, stop_reason=StopReason.DONE.value)
+                self.telemetry.agent_finish(self.name, len(messages))
+                yield StreamEvent("done", response)
+                return
+
+            messages.append(Message(
+                role="assistant", content=remaining_text, tool_calls=tool_calls,
+            ))
+
+            if has_tool_calls:
+                for tc in tool_calls:
+                    yield StreamEvent("tool_call", tc)
+                    result = self._execute_tool_call(tc)
+                    yield StreamEvent("tool_result", result)
+                    messages.append(Message(
+                        role="tool", content=result.output or result.error or "",
+                        tool_call_id=tc.id,
+                    ))
+
+            if has_code:
+                for code in extract_code_blocks(full_text):
+                    yield StreamEvent("code_exec", code)
+                    output = self._execute_code(code)
+                    yield StreamEvent("code_result", output)
+                    messages.append(Message(role="user", content=f"[Code output]\n{output}"))
+
+        self.telemetry.agent_finish(self.name, len(messages))
+        yield StreamEvent("done", Response(content=full_text, stop_reason=StopReason.MAX_ROUNDS.value))
 
     def run_background(
         self,

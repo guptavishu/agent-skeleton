@@ -67,6 +67,33 @@ def create_app(agent: Agent | None = None) -> FastAPI:
                 usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
             )
 
+    @app.post("/chat/stream")
+    def chat_stream(req: ChatRequest):
+        def generate():
+            for event in _agent.run_stream(
+                req.message,
+                tools_only=req.tools_only,
+                exec_code=req.exec_code,
+                plan=req.plan,
+            ):
+                if event.type == "text":
+                    yield f"data: {json.dumps({'type': 'text', 'data': event.data})}\n\n"
+                elif event.type == "tool_call":
+                    yield f"data: {json.dumps({'type': 'tool_call', 'data': {'name': event.data.name, 'arguments': event.data.arguments}})}\n\n"
+                elif event.type == "tool_result":
+                    yield f"data: {json.dumps({'type': 'tool_result', 'data': {'output': event.data.output, 'error': event.data.error}})}\n\n"
+                elif event.type == "code_exec":
+                    yield f"data: {json.dumps({'type': 'code_exec', 'data': event.data[:200]})}\n\n"
+                elif event.type == "code_result":
+                    yield f"data: {json.dumps({'type': 'code_result', 'data': event.data[:500]})}\n\n"
+                elif event.type == "done":
+                    yield f"data: {json.dumps({'type': 'done', 'data': {'content': event.data.content, 'stop_reason': event.data.stop_reason}})}\n\n"
+                elif event.type == "error":
+                    yield f"data: {json.dumps({'type': 'error', 'data': event.data})}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(generate(), media_type="text/event-stream")
+
     @app.get("/tools")
     def tools():
         return [
@@ -195,7 +222,7 @@ async function send() {
   status.textContent = 'thinking...';
 
   try {
-    const res = await fetch('/chat', {
+    const res = await fetch('/chat/stream', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -205,13 +232,67 @@ async function send() {
         plan: plan,
       }),
     });
-    const data = await res.json();
-    const tokens = (data.usage && data.usage.total_tokens) || 0;
-    const meta = `${data.stop_reason || 'unknown'} · ${tokens} tokens`;
-    addMsg('assistant', data.content || '(no content)', meta);
-    if (data.tool_calls && data.tool_calls.length > 0) {
-      const tools = data.tool_calls.map(t => t.name + '(' + JSON.stringify(t.arguments) + ')').join('\\n');
-      addMsg('system', 'tools used: ' + tools);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let assistantDiv = null;
+    let fullText = '';
+    let buffer = '';
+
+    while (true) {
+      const {done: streamDone, value} = await reader.read();
+      if (streamDone) break;
+
+      buffer += decoder.decode(value, {stream: true});
+      const lines = buffer.split('\\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const payload = line.slice(6);
+        if (payload === '[DONE]') continue;
+
+        let evt;
+        try { evt = JSON.parse(payload); } catch { continue; }
+
+        if (evt.type === 'text') {
+          if (!assistantDiv) {
+            assistantDiv = document.createElement('div');
+            assistantDiv.className = 'msg assistant';
+            msgs.appendChild(assistantDiv);
+          }
+          fullText += evt.data;
+          assistantDiv.textContent = fullText;
+          msgs.scrollTop = msgs.scrollHeight;
+        } else if (evt.type === 'tool_call') {
+          addMsg('system', 'calling ' + evt.data.name + '(' + JSON.stringify(evt.data.arguments) + ')');
+          status.textContent = 'tool: ' + evt.data.name;
+        } else if (evt.type === 'tool_result') {
+          const out = evt.data.error || evt.data.output || '';
+          addMsg('system', 'result: ' + out.slice(0, 200));
+          assistantDiv = null;
+          fullText = '';
+        } else if (evt.type === 'code_exec') {
+          addMsg('system', 'executing code...');
+          status.textContent = 'executing code';
+        } else if (evt.type === 'code_result') {
+          addMsg('system', 'output: ' + (evt.data || '').slice(0, 200));
+          assistantDiv = null;
+          fullText = '';
+        } else if (evt.type === 'done') {
+          if (!assistantDiv && evt.data.content) {
+            addMsg('assistant', evt.data.content);
+          }
+          if (assistantDiv) {
+            const meta = document.createElement('div');
+            meta.className = 'meta';
+            meta.textContent = evt.data.stop_reason || 'done';
+            assistantDiv.appendChild(meta);
+          }
+        } else if (evt.type === 'error') {
+          addMsg('system', 'error: ' + evt.data);
+        }
+      }
     }
   } catch (e) {
     addMsg('system', 'error: ' + e.message);
