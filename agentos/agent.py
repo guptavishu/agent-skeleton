@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass, field
@@ -779,7 +780,10 @@ class Agent:
         use_code = mode in ("code_only", "hybrid")
         tools = self.tool_registry.list() if use_tools else None
 
+        start_time = time.time()
+        total_usage = Usage()
         response = Response(content="")
+
         for round_num in range(start_round, max_rounds):
             if self._stopped:
                 reason = StopReason.DEFERRED if self._defer_requested else StopReason.INTERRUPTED
@@ -796,6 +800,8 @@ class Agent:
                         session_id=session_id,
                     ))
                 response.stop_reason = reason.value
+                response.elapsed = time.time() - start_time
+                response.usage = total_usage
                 return response
 
             managed = self.context.manage(messages, getattr(self.provider, 'context_window', 128000))
@@ -805,12 +811,17 @@ class Agent:
                 tools=tools,
             )
             self._log_llm(response)
+            total_usage.prompt_tokens += response.usage.prompt_tokens
+            total_usage.completion_tokens += response.usage.completion_tokens
+            total_usage.total_tokens += response.usage.total_tokens
 
             has_tool_calls = use_tools and bool(response.tool_calls)
             has_code = use_code and bool(extract_code_blocks(response.content))
 
             if not has_tool_calls and not has_code:
                 response.stop_reason = StopReason.DONE.value
+                response.elapsed = time.time() - start_time
+                response.usage = total_usage
                 return response
 
             messages.append(Message(role="assistant", content=response.content, tool_calls=response.tool_calls))
@@ -828,6 +839,8 @@ class Agent:
                     messages.append(Message(role="user", content=f"[Code output]\n{output}"))
 
         response.stop_reason = StopReason.MAX_ROUNDS.value
+        response.elapsed = time.time() - start_time
+        response.usage = total_usage
         return response
 
     async def _arun_loop(
@@ -844,7 +857,10 @@ class Agent:
         use_code = mode in ("code_only", "hybrid")
         tools = self.tool_registry.list() if use_tools else None
 
+        start_time = time.time()
+        total_usage = Usage()
         response = Response(content="")
+
         for round_num in range(start_round, max_rounds):
             if self._stopped:
                 reason = StopReason.DEFERRED if self._defer_requested else StopReason.INTERRUPTED
@@ -861,6 +877,8 @@ class Agent:
                         session_id=session_id,
                     ))
                 response.stop_reason = reason.value
+                response.elapsed = time.time() - start_time
+                response.usage = total_usage
                 return response
 
             managed = self.context.manage(messages, getattr(self.provider, 'context_window', 128000))
@@ -870,12 +888,17 @@ class Agent:
                 tools=tools,
             )
             self._log_llm(response)
+            total_usage.prompt_tokens += response.usage.prompt_tokens
+            total_usage.completion_tokens += response.usage.completion_tokens
+            total_usage.total_tokens += response.usage.total_tokens
 
             has_tool_calls = use_tools and bool(response.tool_calls)
             has_code = use_code and bool(extract_code_blocks(response.content))
 
             if not has_tool_calls and not has_code:
                 response.stop_reason = StopReason.DONE.value
+                response.elapsed = time.time() - start_time
+                response.usage = total_usage
                 return response
 
             messages.append(Message(role="assistant", content=response.content, tool_calls=response.tool_calls))
@@ -893,6 +916,8 @@ class Agent:
                     messages.append(Message(role="user", content=f"[Code output]\n{output}"))
 
         response.stop_reason = StopReason.MAX_ROUNDS.value
+        response.elapsed = time.time() - start_time
+        response.usage = total_usage
         return response
 
     def _build_run_context(

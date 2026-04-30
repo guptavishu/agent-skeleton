@@ -159,3 +159,30 @@ def test_builtin_prompts_exist():
     assert "planning" in BUILTIN_PROMPTS
     assert "repair" in BUILTIN_PROMPTS
     assert "code_exec" in BUILTIN_PROMPTS
+
+
+def test_run_tracks_elapsed_and_usage():
+    provider = FakeProvider([
+        Response(content="", tool_calls=[ToolCall(id="c1", name="echo", arguments={"msg": "hi"})],
+                 usage=Usage(100, 20, 120)),
+        Response(content="done", usage=Usage(200, 30, 230)),
+    ])
+
+    def echo(msg: str) -> str:
+        """Echo."""
+        return msg
+
+    agent = Agent("test", provider=provider, tools=[Tool.from_function(echo)], builtins=False)
+    result = agent.run("go", tools_only=True)
+    assert result.elapsed > 0
+    assert result.usage.prompt_tokens == 300
+    assert result.usage.completion_tokens == 50
+    assert result.usage.total_tokens == 350
+
+
+def test_run_single_round_has_elapsed():
+    provider = FakeProvider([Response(content="ok", usage=Usage(50, 10, 60))])
+    agent = Agent("test", provider=provider, builtins=False)
+    result = agent.run("question")
+    assert result.elapsed > 0
+    assert result.usage.total_tokens == 60

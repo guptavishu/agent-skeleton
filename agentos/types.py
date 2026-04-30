@@ -55,6 +55,7 @@ class Response:
     content: str
     model: str = ""
     stop_reason: str = ""
+    elapsed: float = 0.0
     usage: Usage = field(default_factory=Usage)
     tool_calls: list[ToolCall] = field(default_factory=list)
 

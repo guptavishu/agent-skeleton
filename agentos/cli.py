@@ -131,6 +131,14 @@ def _interactive(agent: Agent, args) -> None:
         _run_interruptible(agent, prompt, args)
 
 
+def _print_stats(response) -> None:
+    u = response.usage
+    elapsed = response.elapsed
+    if u.total_tokens and elapsed > 0:
+        tok_s = u.completion_tokens / elapsed
+        print(f"  [{u.prompt_tokens} prompt + {u.completion_tokens} completion = {u.total_tokens} tokens in {elapsed:.1f}s ({tok_s:.1f} tok/s)]")
+
+
 def _run_interruptible(agent: Agent, prompt: str, args) -> None:
     original_handler = signal.getsignal(signal.SIGINT)
 
@@ -156,6 +164,7 @@ def _run_interruptible(agent: Agent, prompt: str, args) -> None:
             print(f"\n{response.content}\n  [max rounds reached]")
         else:
             print(f"\n{response.content}\n")
+        _print_stats(response)
     finally:
         signal.signal(signal.SIGINT, original_handler)
 
