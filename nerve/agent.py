@@ -18,7 +18,7 @@ from .telemetry import Telemetry
 from .tools import BUILTIN_TOOLS, Tool, ToolRegistry
 from .types import Message, Response, RunState, StopReason, StreamEvent, ToolCall, ToolResult, Usage
 
-DEFERRED_DIR = Path.home() / ".agentos" / "deferred"
+DEFERRED_DIR = Path.home() / ".nerve" / "deferred"
 
 MAX_ROUNDS = 20
 
@@ -417,7 +417,7 @@ class Agent:
                 raise TypeError(
                     "No provider specified and OllamaProvider is not available. "
                     "Either pass a provider: Agent(provider=MyProvider()) "
-                    "or install Ollama support: pip install agentos[ollama]"
+                    "or install Ollama support: pip install nerve[ollama]"
                 ) from None
         self.provider = provider
         self.model = model

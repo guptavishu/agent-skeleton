@@ -1,8 +1,8 @@
 """Tests for streaming agent execution."""
 
-from agentos.agent import Agent
-from agentos.tools import Tool
-from agentos.types import Response, StopReason, StreamEvent, ToolCall, Usage
+from nerve.agent import Agent
+from nerve.tools import Tool
+from nerve.types import Response, StopReason, StreamEvent, ToolCall, Usage
 
 
 class FakeStreamProvider:

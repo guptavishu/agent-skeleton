@@ -1,13 +1,13 @@
 """Tests for context management policies."""
 
-from agentos.protocols import ContextPolicy
-from agentos.providers.context import (
+from nerve.protocols import ContextPolicy
+from nerve.providers.context import (
     SummarizeContext,
     TokenWindowContext,
     estimate_tokens,
     message_tokens,
 )
-from agentos.types import Message, Response
+from nerve.types import Message, Response
 
 
 def _msgs(n: int, content: str = "hello world") -> list[Message]:
@@ -121,7 +121,7 @@ def test_message_tokens():
 # --- Provider context_window ---
 
 def test_provider_context_window_used():
-    from agentos.agent import Agent
+    from nerve.agent import Agent
 
     class FakeProvider:
         context_window = 50
@@ -156,7 +156,7 @@ def test_provider_context_window_used():
 
 def test_provider_without_context_window_defaults():
     """Providers that don't set context_window get 128k default."""
-    from agentos.agent import Agent
+    from nerve.agent import Agent
 
     class BareProvider:
         def complete(self, messages, **kw):

@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-skeleton"
+name = "nerve"
 version = "0.1.0"
 description = "Thin, extensible agent framework with reasonable defaults"
 readme = "README.md"
@@ -13,13 +13,13 @@ authors = [{ name = "Vishu Gupta", email = "gupta.vishu@gmail.com" }]
 dependencies = []
 
 [tool.setuptools.packages.find]
-include = ["agentos*"]
+include = ["nerve*"]
 
 [project.scripts]
-agentos = "agentos.cli:main"
+nerve = "nerve.cli:main"
 
 [project.optional-dependencies]
 ollama = ["httpx>=0.27.0"]
 web = ["fastapi>=0.115.0", "uvicorn>=0.32.0"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24.0", "ruff>=0.4.0"]
-all = ["agentos[ollama,web]"]
+all = ["nerve[ollama,web]"]

@@ -1,8 +1,8 @@
 """Tests for Agent — uses a fake provider to avoid network calls."""
 
-from agentos.agent import Agent, BUILTIN_PROMPTS
-from agentos.tools import Tool
-from agentos.types import Message, Response, ToolCall, Usage
+from nerve.agent import Agent, BUILTIN_PROMPTS
+from nerve.tools import Tool
+from nerve.types import Message, Response, ToolCall, Usage
 
 
 class FakeProvider:

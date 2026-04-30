@@ -1,8 +1,8 @@
 """Tests for multi-turn conversation sessions."""
 
-from agentos.agent import Agent, Session
-from agentos.tools import Tool
-from agentos.types import Message, Response, StopReason, ToolCall, Usage
+from nerve.agent import Agent, Session
+from nerve.tools import Tool
+from nerve.types import Message, Response, StopReason, ToolCall, Usage
 
 
 class FakeProvider:

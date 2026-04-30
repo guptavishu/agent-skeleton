@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-from agentos.agent import Agent
+from nerve.agent import Agent
 
 from .cases import build_cases
 from .harness import print_comparison, run_suite

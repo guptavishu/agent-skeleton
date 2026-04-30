@@ -1,6 +1,6 @@
 """Basic background run with callback notification."""
 
-from agentos import Agent
+from nerve import Agent
 
 agent = Agent("bg-test")
 

@@ -1,6 +1,6 @@
 """Tests for code execution and code block extraction."""
 
-from agentos.executor import extract_code_blocks, execute_code
+from nerve.executor import extract_code_blocks, execute_code
 
 
 def test_extract_python_blocks():

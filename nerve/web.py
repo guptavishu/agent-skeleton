@@ -61,7 +61,7 @@ def create_app(
         k: v for k, v in {"tools_only": tools_only, "exec_code": exec_code, "plan": plan}.items() if v
     }
 
-    app = FastAPI(title="AgentOS")
+    app = FastAPI(title="Nerve")
 
     @app.get("/", response_class=HTMLResponse)
     def index():
@@ -186,7 +186,7 @@ def run_server(
     import uvicorn
     app = create_app(agent, tools_only=tools_only, exec_code=exec_code, plan=plan)
     mode = "tools_only" if tools_only else ("code_only" if exec_code else "hybrid")
-    print(f"AgentOS web UI: http://{host}:{port} (mode={mode}, plan={plan})")
+    print(f"Nerve web UI: http://{host}:{port} (mode={mode}, plan={plan})")
     uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
@@ -196,7 +196,7 @@ _INDEX_HTML = """\
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AgentOS</title>
+<title>Nerve</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -258,7 +258,7 @@ _INDEX_HTML = """\
 
 <div id="sidebar">
   <div id="sidebar-header">
-    <h1>AgentOS</h1>
+    <h1>Nerve</h1>
     <button id="new-chat">+ New</button>
   </div>
   <div id="session-list"></div>

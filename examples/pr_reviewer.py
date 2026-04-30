@@ -1,6 +1,6 @@
 """Example: a PR review agent with skills, memory, and HITL gates."""
 
-from agentos import Agent, FileMemory, HITLPolicy, Skill, Tool
+from nerve import Agent, FileMemory, HITLPolicy, Skill, Tool
 
 
 # --- Define tools ---
@@ -47,7 +47,7 @@ pr_review_skill = Skill(
 reviewer = Agent(
     name="pr-reviewer",
     skills=[pr_review_skill],
-    memory=FileMemory("~/.agentos/reviewer-memory/"),
+    memory=FileMemory("~/.nerve/reviewer-memory/"),
     hitl=HITLPolicy(
         approve_before=["post_comment"],  # human approves before commenting
         auto_approve=["fetch_diff", "read_file"],

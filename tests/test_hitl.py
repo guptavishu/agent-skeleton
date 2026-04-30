@@ -1,7 +1,7 @@
 """Tests for HITL policy."""
 
-from agentos.hitl import HITLPolicy, PERMISSIVE
-from agentos.types import ToolCall
+from nerve.hitl import HITLPolicy, PERMISSIVE
+from nerve.types import ToolCall
 
 
 def _call(name: str) -> ToolCall:

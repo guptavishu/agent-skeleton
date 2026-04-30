@@ -37,7 +37,7 @@ class Skill:
 
 
 SKILL_DIRS = [
-    Path.home() / ".agentos" / "skills",
+    Path.home() / ".nerve" / "skills",
     Path.cwd() / "skills",
 ]
 

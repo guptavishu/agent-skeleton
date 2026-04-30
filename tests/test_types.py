@@ -1,6 +1,6 @@
 """Tests for core data types."""
 
-from agentos.types import (
+from nerve.types import (
     ExecResult,
     MemoryEntry,
     Message,

@@ -9,11 +9,11 @@ from ..types import MemoryEntry
 class FileMemory:
     """JSON-file-backed memory. Each entry is a separate .json file.
 
-    Default location: ~/.agentos/memory/
+    Default location: ~/.nerve/memory/
     """
 
     def __init__(self, path: str | Path | None = None):
-        self.path = Path(path or Path.home() / ".agentos" / "memory")
+        self.path = Path(path or Path.home() / ".nerve" / "memory")
         self.path.mkdir(parents=True, exist_ok=True)
 
     def _entry_path(self, entry_id: str) -> Path:

@@ -1,21 +1,21 @@
-# agent-skeleton
+# nerve
 
 Thin, extensible agent framework with zero required dependencies. Build agents that use tools, execute code, remember things, and coordinate with each other — in under 20 lines.
 
 ## Install
 
 ```bash
-pip install agentos                  # core — zero dependencies, bring your own provider
-pip install agentos[ollama]          # adds Ollama support (local LLMs)
-pip install agentos[web]             # adds web UI
-pip install agentos[all]             # everything
+pip install nerve                  # core — zero dependencies, bring your own provider
+pip install nerve[ollama]          # adds Ollama support (local LLMs)
+pip install nerve[web]             # adds web UI
+pip install nerve[all]             # everything
 ```
 
 For development:
 
 ```bash
-git clone https://github.com/guptavishu/agent-skeleton.git
-cd agent-skeleton
+git clone https://github.com/guptavishu/nerve.git
+cd nerve
 pip install -e ".[ollama,web,dev]"
 ```
 
@@ -24,7 +24,7 @@ pip install -e ".[ollama,web,dev]"
 ### Bring Your Own Provider
 
 ```python
-from agentos import Agent, Provider, Message, Response, Usage
+from nerve import Agent, Provider, Message, Response, Usage
 
 class MyProvider:
     def complete(self, messages, *, system="", model="", temperature=0.7,
@@ -46,12 +46,12 @@ print(result.content)
 ### With Ollama (Local LLMs)
 
 ```bash
-pip install agentos[ollama]
+pip install nerve[ollama]
 ollama pull qwen2.5-coder:32b
 ```
 
 ```python
-from agentos import Agent
+from nerve import Agent
 
 agent = Agent("my-agent")  # defaults to OllamaProvider
 result = agent.run("What files are in the current directory?")
@@ -63,7 +63,7 @@ The agent uses hybrid mode by default — it has tools (read_file, write_file, s
 ### With Skills, Memory, and Guardrails
 
 ```python
-from agentos import Agent, FileMemory, HITLPolicy, Skill, Tool
+from nerve import Agent, FileMemory, HITLPolicy, Skill, Tool
 
 def fetch_logs(service: str, hours: int = 1) -> str:
     """Fetch recent logs for a service."""
@@ -93,20 +93,20 @@ result = agent.run("API latency spiked to 2s. Investigate.")
 
 ```bash
 # batch mode
-agentos "List all Python files in this directory"
+nerve "List all Python files in this directory"
 
 # interactive mode
-agentos
+nerve
 
 # web UI
-agentos --web
-agentos --web --port 9000
+nerve --web
+nerve --web --port 9000
 
 # options
-agentos --tools-only "Read config.yaml"       # no code execution
-agentos --exec "Calculate fibonacci(30)"       # code-only mode
-agentos --plan "Refactor the auth module"      # enable planning
-agentos --skill ./my_skill.py "Do the thing"   # load a skill file
+nerve --tools-only "Read config.yaml"       # no code execution
+nerve --exec "Calculate fibonacci(30)"       # code-only mode
+nerve --plan "Refactor the auth module"      # enable planning
+nerve --skill ./my_skill.py "Do the thing"   # load a skill file
 ```
 
 Interactive commands: `/skills`, `/tools`, `/memory <query>`, `/remember key=value`, `/defer`, `/deferred`, `/resume <id>`, `/help`.
@@ -131,11 +131,11 @@ Agent(name, provider, skills[], memory?, hitl?, delegates?)
 |-----------|-------------|---------|----------------|
 | **Provider** | Talks to LLMs | Ollama (if installed) | `Provider` protocol — implement 4 methods |
 | **Tools** | Structured actions the agent can take | read_file, write_file, shell_exec, list_directory | `Tool.from_function(fn)` or `Tool(...)` |
-| **Skills** | Reusable prompt+tool bundles | Auto-discovered from `~/.agentos/skills/` | `Skill(name, prompt, tools)` |
-| **Memory** | Persistent knowledge across runs | File-backed JSON in `~/.agentos/memory/` | `Memory` protocol — implement 4 methods |
+| **Skills** | Reusable prompt+tool bundles | Auto-discovered from `~/.nerve/skills/` | `Skill(name, prompt, tools)` |
+| **Memory** | Persistent knowledge across runs | File-backed JSON in `~/.nerve/memory/` | `Memory` protocol — implement 4 methods |
 | **HITL** | Human approval gates | Everything auto-approved | `HITLPolicy(approve_before=[...])` |
 | **Coordinator** | Multi-agent delegation | Sequential (one at a time) | `Coordinator` protocol |
-| **Telemetry** | Structured event logging | JSON lines to `~/.agentos/agentos.log` | `Telemetry` class |
+| **Telemetry** | Structured event logging | JSON lines to `~/.nerve/nerve.log` | `Telemetry` class |
 
 ### Execution Modes
 
@@ -201,8 +201,8 @@ result = agent.resume(state_id)
 A skill is a Python file with a module-level `skill` variable:
 
 ```python
-# ~/.agentos/skills/my_skill.py
-from agentos import Skill, Tool
+# ~/.nerve/skills/my_skill.py
+from nerve import Skill, Tool
 
 def my_tool(arg: str) -> str:
     """Does something useful."""
@@ -216,7 +216,7 @@ skill = Skill(
 )
 ```
 
-Skills in `~/.agentos/skills/` or `./skills/` are auto-discovered. Load others with `--skill path` or `skills=[Skill.load("path")]`.
+Skills in `~/.nerve/skills/` or `./skills/` are auto-discovered. Load others with `--skill path` or `skills=[Skill.load("path")]`.
 
 ## Multi-Agent
 
@@ -236,7 +236,7 @@ doc = lead.delegate(writer, f"Write about: {research.content}")
 Implement the `Provider` protocol to plug in any LLM:
 
 ```python
-from agentos import Provider, Message, Response, Tool
+from nerve import Provider, Message, Response, Tool
 
 class MyProvider:
     def complete(self, messages, *, system="", model="", temperature=0.7,
@@ -260,7 +260,7 @@ agent = Agent("my-agent", provider=MyProvider())
 ## Custom Memory Backend
 
 ```python
-from agentos import Memory, MemoryEntry
+from nerve import Memory, MemoryEntry
 
 class RedisMemory:
     def store(self, key, content, metadata=None) -> MemoryEntry: ...
@@ -274,9 +274,9 @@ agent = Agent("my-agent", provider=my_provider, memory=RedisMemory())
 ## Project Structure
 
 ```
-agent-skeleton/
+nerve/
 ├── pyproject.toml
-├── agentos/
+├── nerve/
 │   ├── __init__.py       # re-exports everything
 │   ├── agent.py          # Agent class, RunHandle, execution loops
 │   ├── provider.py       # Provider protocol + OllamaProvider

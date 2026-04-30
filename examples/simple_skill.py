@@ -1,9 +1,9 @@
 """Example: a minimal skill file that can be auto-discovered.
 
-Drop this in ~/.agentos/skills/ and it will be loaded automatically.
+Drop this in ~/.nerve/skills/ and it will be loaded automatically.
 """
 
-from agentos import Skill, Tool
+from nerve import Skill, Tool
 
 
 def count_words(text: str) -> str:

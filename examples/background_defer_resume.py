@@ -1,6 +1,6 @@
 """Defer a background run after the first tool call, then resume it."""
 
-from agentos import Agent
+from nerve import Agent
 
 agent = Agent("bg-test")
 

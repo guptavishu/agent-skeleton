@@ -1,6 +1,6 @@
 """Example: multi-agent delegation — a lead agent coordinates researcher + writer."""
 
-from agentos import Agent, Skill, Tool
+from nerve import Agent, Skill, Tool
 
 
 def web_search(query: str) -> str:

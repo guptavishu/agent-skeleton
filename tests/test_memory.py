@@ -2,7 +2,7 @@
 
 import tempfile
 
-from agentos.providers.memory import FileMemory
+from nerve.providers.memory import FileMemory
 
 
 def _make_memory():

@@ -1,7 +1,7 @@
 """Tests for coordinator."""
 
-from agentos.providers.coordinator import SequentialCoordinator
-from agentos.types import Response
+from nerve.providers.coordinator import SequentialCoordinator
+from nerve.types import Response
 
 
 class FakeAgent:

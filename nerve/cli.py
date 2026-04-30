@@ -1,4 +1,4 @@
-"""CLI entry point for agent-skeleton."""
+"""CLI entry point for nerve."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def _print_code_result(output: str) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="agentos",
+        prog="nerve",
         description="Thin, extensible agent framework",
     )
     parser.add_argument("prompt", nargs="?", help="Task to run (omit for interactive mode)")
@@ -56,7 +56,7 @@ def main():
     parser.add_argument("--skill", action="append", default=[], help="Load a skill file (can repeat)")
     parser.add_argument("--orch", action="append", default=[], help="Add orchestration mode (can repeat)")
     parser.add_argument("--max-rounds", type=int, default=20, help="Max loop iterations")
-    parser.add_argument("--name", default="agentos", help="Agent name")
+    parser.add_argument("--name", default="nerve", help="Agent name")
     parser.add_argument("--web", action="store_true", help="Start web UI")
     parser.add_argument("--port", type=int, default=8420, help="Web UI port")
     args = parser.parse_args()
@@ -108,7 +108,7 @@ def main():
 
 
 def _interactive(agent: Agent, args) -> None:
-    print(f"agent-skeleton ({agent.name}) — interactive mode")
+    print(f"nerve ({agent.name}) — interactive mode")
     print("Type your task, or 'quit' to exit.\n")
 
     while True:

@@ -1,7 +1,7 @@
 """Tests for OllamaProvider parsing logic (no network calls)."""
 
-from agentos.providers.ollama import OllamaProvider, parse_tool_calls_from_text, _try_extract_json
-from agentos.types import ToolCall
+from nerve.providers.ollama import OllamaProvider, parse_tool_calls_from_text, _try_extract_json
+from nerve.types import ToolCall
 
 
 def _provider():

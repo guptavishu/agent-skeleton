@@ -4,8 +4,8 @@ import os
 import tempfile
 from pathlib import Path
 
-from agentos.tools import BUILTIN_TOOLS, Tool, ToolRegistry
-from agentos.types import ToolCall
+from nerve.tools import BUILTIN_TOOLS, Tool, ToolRegistry
+from nerve.types import ToolCall
 
 
 # --- Tool.from_function ---

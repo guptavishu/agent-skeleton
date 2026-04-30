@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from agentos.types import Response
+from nerve.types import Response
 from .harness import EvalCase
 
 

@@ -81,7 +81,7 @@ class OllamaProvider:
             import httpx
         except ImportError:
             raise ImportError(
-                "OllamaProvider requires httpx. Install it with: pip install agentos[ollama]"
+                "OllamaProvider requires httpx. Install it with: pip install nerve[ollama]"
             ) from None
         self._httpx = httpx
         self.context_window = context_window

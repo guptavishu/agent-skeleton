@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-DEFAULT_LOG_PATH = Path.home() / ".agentos" / "agentos.log"
+DEFAULT_LOG_PATH = Path.home() / ".nerve" / "nerve.log"
 
 
 class Telemetry:

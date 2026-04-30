@@ -4,7 +4,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from agentos.telemetry import Telemetry
+from nerve.telemetry import Telemetry
 
 
 def _make_telemetry():

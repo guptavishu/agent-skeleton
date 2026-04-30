@@ -5,9 +5,9 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from agentos.agent import Agent, DEFERRED_DIR
-from agentos.tools import Tool
-from agentos.types import Message, Response, RunState, StopReason, ToolCall, Usage
+from nerve.agent import Agent, DEFERRED_DIR
+from nerve.tools import Tool
+from nerve.types import Message, Response, RunState, StopReason, ToolCall, Usage
 
 
 class FakeProvider:
@@ -90,7 +90,7 @@ def test_stop_reason_max_rounds():
 # --- Deferral ---
 
 def test_defer_saves_state(tmp_path):
-    with patch("agentos.agent.DEFERRED_DIR", tmp_path):
+    with patch("nerve.agent.DEFERRED_DIR", tmp_path):
         agent = _agent_with_loop()
 
         call_count = [0]
@@ -118,7 +118,7 @@ def test_defer_saves_state(tmp_path):
 
 
 def test_resume_from_state(tmp_path):
-    with patch("agentos.agent.DEFERRED_DIR", tmp_path):
+    with patch("nerve.agent.DEFERRED_DIR", tmp_path):
         # Create a state with 2 messages already in history
         tc = ToolCall(id="c1", name="echo", arguments={"msg": "hi"})
         responses = [Response(content="final answer")]
@@ -171,7 +171,7 @@ def test_resume_from_state_object():
 
 
 def test_list_deferred(tmp_path):
-    with patch("agentos.agent.DEFERRED_DIR", tmp_path):
+    with patch("nerve.agent.DEFERRED_DIR", tmp_path):
         assert Agent.list_deferred() == []
 
         provider = FakeProvider([Response(content="")])
@@ -197,7 +197,7 @@ def test_list_deferred(tmp_path):
 
 
 def test_defer_and_resume_roundtrip(tmp_path):
-    with patch("agentos.agent.DEFERRED_DIR", tmp_path):
+    with patch("nerve.agent.DEFERRED_DIR", tmp_path):
         tc = ToolCall(id="c1", name="echo", arguments={"msg": "hi"})
         responses = [
             Response(content="", tool_calls=[tc]),

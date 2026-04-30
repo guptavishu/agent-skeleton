@@ -1,6 +1,6 @@
 """Background run interrupted after the first tool call."""
 
-from agentos import Agent
+from nerve import Agent
 
 agent = Agent("bg-test")
 
@@ -15,7 +15,7 @@ def stop_after_first(tc):
 agent.on_tool_call = stop_after_first
 
 handle = agent.run_background(
-    "Read every file in the agentos directory and summarize each one",
+    "Read every file in the nerve directory and summarize each one",
     tools_only=True,
     max_rounds=20,
 )

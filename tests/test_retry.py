@@ -4,8 +4,8 @@ import time
 
 import pytest
 
-from agentos.providers.retry import RetryProvider
-from agentos.types import Response
+from nerve.providers.retry import RetryProvider
+from nerve.types import Response
 
 
 class FailThenSucceedProvider:

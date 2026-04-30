@@ -1,6 +1,6 @@
 """Demo of multi-turn conversation sessions."""
 
-from agentos import Agent
+from nerve import Agent
 
 agent = Agent("chat")
 session = agent.session()

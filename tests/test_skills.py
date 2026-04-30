@@ -3,8 +3,8 @@
 import os
 import tempfile
 
-from agentos.skills import Skill, SkillRegistry
-from agentos.tools import Tool
+from nerve.skills import Skill, SkillRegistry
+from nerve.tools import Tool
 
 
 def _dummy_tool():
@@ -22,7 +22,7 @@ def test_skill_creation():
 
 def test_skill_load_from_file():
     code = '''
-from agentos import Skill, Tool
+from nerve import Skill, Tool
 
 def hello(name: str) -> str:
     """Say hi."""
@@ -108,7 +108,7 @@ def test_registry_get_prompts():
 
 def test_registry_discover_from_dir():
     code = '''
-from agentos import Skill
+from nerve import Skill
 skill = Skill(name="discovered", prompt="I was found")
 '''
     with tempfile.TemporaryDirectory() as d:
@@ -123,7 +123,7 @@ skill = Skill(name="discovered", prompt="I was found")
 
 def test_registry_discover_skips_underscored():
     code = '''
-from agentos import Skill
+from nerve import Skill
 skill = Skill(name="hidden", prompt="")
 '''
     with tempfile.TemporaryDirectory() as d:

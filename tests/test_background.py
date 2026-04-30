@@ -4,9 +4,9 @@ import time
 import threading
 from unittest.mock import patch
 
-from agentos.agent import Agent, RunHandle
-from agentos.tools import Tool
-from agentos.types import Response, StopReason, ToolCall
+from nerve.agent import Agent, RunHandle
+from nerve.tools import Tool
+from nerve.types import Response, StopReason, ToolCall
 
 
 class FakeProvider:
@@ -97,7 +97,7 @@ def test_run_background_defer(tmp_path):
     provider = FakeProvider([Response(content="", tool_calls=[tc])], delay=0.05)
     agent = Agent("test", provider=provider, tools=[Tool.from_function(echo)], builtins=False)
 
-    with patch("agentos.agent.DEFERRED_DIR", tmp_path):
+    with patch("nerve.agent.DEFERRED_DIR", tmp_path):
         handle = agent.run_background("go", tools_only=True, max_rounds=50)
         time.sleep(0.15)
         handle.defer()

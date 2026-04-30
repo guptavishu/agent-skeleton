@@ -4,8 +4,8 @@ import os
 import tempfile
 from pathlib import Path
 
-from agentos.protocols import Sandbox
-from agentos.providers.sandbox import LocalSandbox, RestrictedSandbox
+from nerve.protocols import Sandbox
+from nerve.providers.sandbox import LocalSandbox, RestrictedSandbox
 
 
 # --- LocalSandbox ---
@@ -127,8 +127,8 @@ def test_restricted_is_sandbox_protocol():
 
 def test_agent_uses_sandbox():
     """Verify Agent passes code execution through the sandbox."""
-    from agentos.agent import Agent
-    from agentos.types import Response, ToolCall
+    from nerve.agent import Agent
+    from nerve.types import Response, ToolCall
 
     class FakeProvider:
         def __init__(self):
@@ -150,7 +150,7 @@ def test_agent_uses_sandbox():
     class TrackingSandbox:
         def execute(self, code, timeout=30):
             executed.append(code)
-            return __import__("agentos.types", fromlist=["ExecResult"]).ExecResult(
+            return __import__("nerve.types", fromlist=["ExecResult"]).ExecResult(
                 stdout="hello from sandbox\n", stderr="", returncode=0,
             )
 

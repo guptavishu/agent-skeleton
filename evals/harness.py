@@ -7,8 +7,8 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
-from agentos.agent import Agent
-from agentos.types import Response
+from nerve.agent import Agent
+from nerve.types import Response
 
 
 @dataclass
