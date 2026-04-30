@@ -15,7 +15,7 @@ from .providers import FileMemory, LocalSandbox, OllamaProvider, SequentialCoord
 from .skills import Skill, SkillRegistry
 from .telemetry import Telemetry
 from .tools import BUILTIN_TOOLS, Tool, ToolRegistry
-from .types import Message, Response, RunState, StopReason, StreamEvent, ToolCall, ToolResult
+from .types import Message, Response, RunState, StopReason, StreamEvent, ToolCall, ToolResult, Usage
 
 DEFERRED_DIR = Path.home() / ".agentos" / "deferred"
 
@@ -136,6 +136,7 @@ class Session:
         self._session_id = uuid.uuid4().hex[:12]
         self._messages: list[Message] = []
         self._system = self._build_system()
+        self._total_usage = Usage()
 
     def _build_system(self) -> str:
         orch = list(self._orchestration or self._agent.orchestration)
@@ -169,6 +170,7 @@ class Session:
         )
 
         self._messages.append(Message(role="assistant", content=response.content))
+        self._accumulate_usage(response.usage)
         return response
 
     def send_stream(self, message: str, **kwargs) -> Iterator[StreamEvent]:
@@ -244,6 +246,75 @@ class Session:
 
         yield StreamEvent("done", Response(content=full_text, stop_reason=StopReason.MAX_ROUNDS.value))
 
+    async def asend_stream(self, message: str, **kwargs) -> AsyncIterator[StreamEvent]:
+        """Async version of send_stream()."""
+        self._agent._stopped = False
+        self._agent._defer_requested = False
+        self._agent.telemetry.set_session(self._session_id)
+
+        system = self._system
+        if self._agent.memory:
+            memories = self._agent.memory.retrieve(message, limit=5)
+            if memories:
+                memory_text = "\n".join(f"- [{m.key}]: {m.content}" for m in memories)
+                system += f"\n\n## Relevant Memory\n{memory_text}"
+
+        self._messages.append(Message(role="user", content=message))
+
+        use_tools = not self._exec_code
+        use_code = not self._tools_only
+        tools = self._agent.tool_registry.list() if use_tools else None
+        full_text = ""
+
+        for round_num in range(self._max_rounds):
+            if self._agent._stopped:
+                yield StreamEvent("done", Response(content="", stop_reason=StopReason.INTERRUPTED.value))
+                return
+
+            chunks: list[str] = []
+            managed = self._agent.context.manage(self._messages, getattr(self._agent.provider, 'context_window', 128000))
+            try:
+                async for chunk in self._agent.provider.astream(
+                    managed, system=system, model=self._agent.model,
+                    temperature=self._agent.temperature, max_tokens=self._agent.max_tokens,
+                    tools=tools,
+                ):
+                    chunks.append(chunk)
+                    yield StreamEvent("text", chunk)
+            except Exception as e:
+                yield StreamEvent("error", str(e))
+                return
+
+            full_text = "".join(chunks)
+            tool_calls, remaining_text = parse_tool_calls_from_text(full_text)
+            has_tool_calls = use_tools and bool(tool_calls)
+            has_code = use_code and bool(extract_code_blocks(full_text))
+
+            if not has_tool_calls and not has_code:
+                self._messages.append(Message(role="assistant", content=full_text))
+                yield StreamEvent("done", Response(content=full_text, stop_reason=StopReason.DONE.value))
+                return
+
+            self._messages.append(Message(role="assistant", content=remaining_text, tool_calls=tool_calls))
+
+            if has_tool_calls:
+                for tc in tool_calls:
+                    yield StreamEvent("tool_call", tc)
+                    result = self._agent._execute_tool_call(tc)
+                    yield StreamEvent("tool_result", result)
+                    self._messages.append(Message(
+                        role="tool", content=result.output or result.error or "", tool_call_id=tc.id,
+                    ))
+
+            if has_code:
+                for code in extract_code_blocks(full_text):
+                    yield StreamEvent("code_exec", code)
+                    output = self._agent._execute_code(code)
+                    yield StreamEvent("code_result", output)
+                    self._messages.append(Message(role="user", content=f"[Code output]\n{output}"))
+
+        yield StreamEvent("done", Response(content=full_text, stop_reason=StopReason.MAX_ROUNDS.value))
+
     @property
     def messages(self) -> list[Message]:
         return list(self._messages)
@@ -274,7 +345,21 @@ class Session:
         )
 
         self._messages.append(Message(role="assistant", content=response.content))
+        self._accumulate_usage(response.usage)
         return response
+
+    def _accumulate_usage(self, usage: Usage) -> None:
+        self._total_usage.prompt_tokens += usage.prompt_tokens
+        self._total_usage.completion_tokens += usage.completion_tokens
+        self._total_usage.total_tokens += usage.total_tokens
+
+    @property
+    def usage(self) -> Usage:
+        return Usage(
+            self._total_usage.prompt_tokens,
+            self._total_usage.completion_tokens,
+            self._total_usage.total_tokens,
+        )
 
     def clear(self) -> None:
         """Reset conversation history."""

@@ -2,7 +2,7 @@
 
 from agentos.agent import Agent, Session
 from agentos.tools import Tool
-from agentos.types import Message, Response, StopReason, ToolCall
+from agentos.types import Message, Response, StopReason, ToolCall, Usage
 
 
 class FakeProvider:
@@ -183,3 +183,41 @@ def test_multiple_sessions_independent():
     assert len(s2.messages) == 2
     assert s1.messages[0].content == "hello from s1"
     assert s2.messages[0].content == "hello from s2"
+
+
+def test_session_tracks_token_usage():
+    provider = FakeProvider([
+        Response(content="r1", usage=Usage(100, 20, 120)),
+        Response(content="r2", usage=Usage(150, 30, 180)),
+    ])
+    agent = Agent("test", provider=provider, builtins=False)
+    session = agent.session()
+
+    session.send("m1")
+    assert session.usage.prompt_tokens == 100
+    assert session.usage.completion_tokens == 20
+    assert session.usage.total_tokens == 120
+
+    session.send("m2")
+    assert session.usage.prompt_tokens == 250
+    assert session.usage.completion_tokens == 50
+    assert session.usage.total_tokens == 300
+
+
+def test_session_usage_starts_at_zero():
+    provider = FakeProvider([Response(content="ok")])
+    agent = Agent("test", provider=provider, builtins=False)
+    session = agent.session()
+    assert session.usage.total_tokens == 0
+
+
+def test_session_clear_does_not_reset_usage():
+    provider = FakeProvider([
+        Response(content="r1", usage=Usage(100, 20, 120)),
+        Response(content="r2"),
+    ])
+    agent = Agent("test", provider=provider, builtins=False)
+    session = agent.session()
+    session.send("m1")
+    session.clear()
+    assert session.usage.total_tokens == 120

@@ -68,10 +68,10 @@ def create_app(
         return _INDEX_HTML
 
     @app.post("/chat")
-    def chat(req: ChatRequest):
+    async def chat(req: ChatRequest):
         sid, session = _get_or_create_session(req.session_id)
         try:
-            response = session.send(req.message)
+            response = await session.asend(req.message)
             if not _sessions[sid]["title"]:
                 _sessions[sid]["title"] = req.message[:50]
             return {
@@ -98,14 +98,14 @@ def create_app(
             }
 
     @app.post("/chat/stream")
-    def chat_stream(req: ChatRequest):
+    async def chat_stream(req: ChatRequest):
         sid, session = _get_or_create_session(req.session_id)
         if not _sessions[sid]["title"]:
             _sessions[sid]["title"] = req.message[:50]
 
-        def generate():
+        async def generate():
             yield f"data: {json.dumps({'type': 'session_id', 'data': sid})}\n\n"
-            for event in session.send_stream(req.message):
+            async for event in session.asend_stream(req.message):
                 if event.type == "text":
                     yield f"data: {json.dumps({'type': 'text', 'data': event.data})}\n\n"
                 elif event.type == "tool_call":

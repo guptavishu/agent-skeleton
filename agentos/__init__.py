@@ -1,5 +1,7 @@
 """agent-skeleton — thin, extensible agent framework with reasonable defaults."""
 
+__version__ = "0.1.0"
+
 from .agent import Agent, RunHandle, Session
 from .executor import execute_code, extract_code_blocks
 from .hitl import HITLPolicy
@@ -9,6 +11,7 @@ from .providers import (
     LocalSandbox,
     OllamaProvider,
     RestrictedSandbox,
+    RetryProvider,
     SequentialCoordinator,
     SummarizeContext,
     TokenWindowContext,
@@ -34,6 +37,7 @@ __all__ = [
     "OllamaProvider",
     "Provider",
     "RestrictedSandbox",
+    "RetryProvider",
     "Response",
     "RunHandle",
     "RunState",
