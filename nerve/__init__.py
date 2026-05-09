@@ -5,7 +5,7 @@ __version__ = "0.1.0"
 from .agent import Agent, RunHandle, Session
 from .executor import execute_code, extract_code_blocks
 from .hitl import HITLPolicy
-from .protocols import ContextPolicy, Coordinator, Memory, Provider, Sandbox
+from .protocols import ContextPolicy, Coordinator, Memory, Provider, Sandbox, UX
 from .providers import (
     FileMemory,
     LocalSandbox,
@@ -21,10 +21,12 @@ from .skills import Skill, SkillRegistry
 from .telemetry import Telemetry
 from .tools import BUILTIN_TOOLS, Tool, ToolRegistry
 from .types import ExecResult, MemoryEntry, Message, Response, RunState, StopReason, StreamEvent, ToolCall, ToolResult, Usage
+from .ux import CliUX, WebUX
 
 __all__ = [
     "Agent",
     "BUILTIN_TOOLS",
+    "CliUX",
     "ContextPolicy",
     "Coordinator",
     "ExecResult",
@@ -55,7 +57,9 @@ __all__ = [
     "ToolCall",
     "ToolRegistry",
     "ToolResult",
+    "UX",
     "Usage",
+    "WebUX",
     "execute_code",
     "extract_code_blocks",
     "parse_tool_calls_from_text",

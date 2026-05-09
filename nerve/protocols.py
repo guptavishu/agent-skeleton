@@ -88,3 +88,13 @@ class Coordinator(Protocol):
 
     def delegate(self, agent, task: str) -> Response: ...
     def broadcast(self, agents: list, message: str) -> list[Response]: ...
+
+
+@runtime_checkable
+class UX(Protocol):
+    """Implement this to build a user-facing interface for an agent.
+
+    CLI, web, Slack, TUI, etc. — each is a UX implementation.
+    """
+
+    def start(self, agent, **config) -> None: ...
